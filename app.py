@@ -153,11 +153,37 @@ Answer:"""
             output_key="answer"
         )
         
-        # Add Gradio history to memory
-        for user_msg, assistant_msg in history:
-            if user_msg and assistant_msg:
-                memory.chat_memory.add_user_message(user_msg)
-                memory.chat_memory.add_ai_message(assistant_msg)
+        # Add Gradio history to memory with robust error handling
+        for i, entry in enumerate(history):
+            try:
+                user_msg = None
+                assistant_msg = None
+                
+                # Handle list/tuple format: [user, bot] or (user, bot)
+                if isinstance(entry, (list, tuple)):
+                    if len(entry) >= 2:
+                        user_msg = entry[0]
+                        assistant_msg = entry[1]
+                    elif len(entry) == 1:
+                        user_msg = entry[0]
+                
+                # Handle dictionary format (OpenAI style)
+                elif isinstance(entry, dict):
+                    if "role" in entry and "content" in entry:
+                        if entry["role"] == "user":
+                            user_msg = entry["content"]
+                        elif entry["role"] == "assistant":
+                            assistant_msg = entry["content"]
+                
+                # Add to memory if valid
+                if user_msg:
+                    memory.chat_memory.add_user_message(str(user_msg))
+                if assistant_msg:
+                    memory.chat_memory.add_ai_message(str(assistant_msg))
+                    
+            except Exception as e:
+                print(f"⚠️ Warning: Could not parse history entry {i}: {entry} - {e}")
+                continue
         
         # Create ConversationalRetrievalChain
         chain = ConversationalRetrievalChain.from_llm(
