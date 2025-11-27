@@ -22,9 +22,21 @@ class Config:
     PINECONE_INDEX = "meeting-transcripts-1-dev"
     PINECONE_ENVIRONMENT = "us-west1-gcp"  # Change to your environment
     
+    # LangSmith Settings (optional - for tracing and debugging)
+    LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false")
+    LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY", "")
+    LANGCHAIN_PROJECT = os.getenv("LANGCHAIN_PROJECT", "meeting-agent")
+    
     # Service Configuration
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     COMPUTE_TYPE = "float16" if DEVICE == "cuda" else "int8"
     
     # Model Settings
     WHISPER_MODEL = "small" # Options: tiny, base, small, medium, large-v2, large-v3
+
+# Enable LangSmith tracing if configured
+if Config.LANGCHAIN_TRACING_V2 == "true" and Config.LANGCHAIN_API_KEY:
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGCHAIN_API_KEY"] = Config.LANGCHAIN_API_KEY
+    os.environ["LANGCHAIN_PROJECT"] = Config.LANGCHAIN_PROJECT
+    print(f"✅ LangSmith tracing enabled for project: {Config.LANGCHAIN_PROJECT}")

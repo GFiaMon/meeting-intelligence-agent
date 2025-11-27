@@ -1,11 +1,23 @@
 # app.py
-import gradio as gr
-from core.transcription_service import TranscriptionService
-from core.pinecone_manager import PineconeManager
-from core.rag_pipeline import process_transcript_to_documents
+# Standard library imports
+import os
+import re
 import uuid
 from datetime import datetime
-import os
+
+# Third-party library imports
+import gradio as gr
+from langchain.chains import ConversationalRetrievalChain
+from langchain.memory import ConversationBufferMemory
+from langchain.prompts import PromptTemplate
+from langchain_core.messages import HumanMessage, AIMessage
+from langchain_openai import ChatOpenAI
+
+# Local/custom imports
+from config import Config
+from core.pinecone_manager import PineconeManager
+from core.rag_pipeline import process_transcript_to_documents
+from core.transcription_service import TranscriptionService
 
 # Initialize services
 transcription_svc = TranscriptionService()
@@ -71,33 +83,102 @@ def upload_to_pinecone(transcription_data, video_file):
         return f"❌ Error uploading: {str(e)}"
 
 def chat_with_meetings(message, history):
-    """Query stored meeting transcriptions using RAG"""
+    """Query stored meeting transcriptions using RAG with LangChain ConversationalRetrievalChain"""
     if not pinecone_available or not pinecone_mgr:
         return "❌ Pinecone service is not available. Please check your API key configuration."
     
     try:
-        # Get retriever for the default namespace
-        retriever = pinecone_mgr.get_retriever(namespace="default", search_kwargs={"k": 3})
+        # Initialize LLM
+        llm = ChatOpenAI(
+            model=Config.MODEL_NAME,
+            temperature=0.7,
+            openai_api_key=Config.OPENAI_API_KEY
+        )
         
-        # Retrieve relevant documents
-        docs = retriever.get_relevant_documents(message)
+        # Dynamic retrieval strategy based on query intent
+        query_lower = message.lower()
         
-        if not docs:
-            return "No relevant information found in stored meetings. Please make sure you have uploaded transcriptions."
+        # Check for meeting_id in query (e.g., "meeting_abc12345")
+        meeting_id_match = re.search(r'meeting_([a-f0-9]{8})', message)
+        meeting_id = meeting_id_match.group(0) if meeting_id_match else None
         
-        # Format context from retrieved documents
-        context = "\n\n".join([f"Context {i+1}:\n{doc.page_content}" for i, doc in enumerate(docs)])
+        # Determine optimal k and filters based on query type
+        comprehensive_keywords = ["summarize", "summary", "all", "entire", "complete", "overview", "everything", "full"]
+        is_comprehensive = any(keyword in query_lower for keyword in comprehensive_keywords)
         
-        # Simple response (you can integrate with OpenAI/LangChain for better responses)
-        response = f"Based on the meeting transcripts, here's what I found:\n\n{context}"
+        if meeting_id and is_comprehensive:
+            # Specific meeting summary - retrieve ALL chunks from that meeting
+            search_kwargs = {
+                "k": 100,  # High k to ensure we get all chunks
+                "filter": {"meeting_id": {"$eq": meeting_id}}
+            }
+        elif is_comprehensive:
+            # General comprehensive question - retrieve many chunks
+            search_kwargs = {"k": 20}
+        else:
+            # Specific question - semantic search with moderate k
+            search_kwargs = {"k": 5}
         
-        return response
+        # Get retriever with dynamic search parameters
+        retriever = pinecone_mgr.get_retriever(
+            namespace="default",
+            search_kwargs=search_kwargs
+        )
+        
+        # Create custom prompt template for meeting context
+        prompt_template = """You are a helpful meeting assistant. Use the provided meeting transcript excerpts to answer questions accurately and concisely.
+
+When answering:
+- Reference specific speakers when relevant (e.g., "SPEAKER_00 mentioned...")
+- Include timestamps if they help provide context
+- If the context doesn't contain the answer, say so clearly
+- Be conversational and natural
+
+Context from meetings:
+{context}
+
+Question: {question}
+
+Answer:"""
+        
+        PROMPT = PromptTemplate(
+            template=prompt_template,
+            input_variables=["context", "question"]
+        )
+        
+        # Create memory and populate with history
+        memory = ConversationBufferMemory(
+            memory_key="chat_history",
+            return_messages=True,
+            output_key="answer"
+        )
+        
+        # Add Gradio history to memory
+        for user_msg, assistant_msg in history:
+            if user_msg and assistant_msg:
+                memory.chat_memory.add_user_message(user_msg)
+                memory.chat_memory.add_ai_message(assistant_msg)
+        
+        # Create ConversationalRetrievalChain
+        chain = ConversationalRetrievalChain.from_llm(
+            llm=llm,
+            retriever=retriever,
+            memory=memory,
+            combine_docs_chain_kwargs={"prompt": PROMPT},
+            return_source_documents=True,
+            verbose=False  # Set to True for debugging
+        )
+        
+        # Run the chain
+        result = chain({"question": message})
+        
+        return result["answer"]
         
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error in chat_with_meetings: {error_details}")
         return f"❌ Error querying meetings: {str(e)}"
-
-
-
 
 # --- Gradio Interface ---
 with gr.Blocks(title="Meeting Agent - Diarization") as demo:
@@ -159,17 +240,19 @@ with gr.Blocks(title="Meeting Agent - Diarization") as demo:
     
     with gr.Tab("💬 Ask About Meetings"):
         gr.Markdown("### Ask questions about your stored meetings")
+        gr.Markdown("**Powered by LangChain ConversationalRetrievalChain** - Natural language answers with conversation memory")
         gr.Markdown("Examples: 'What were the main action items?', 'Who mentioned the budget?', 'What decisions were made?'")
         
         # Use your existing chatbot interface
         chatbot = gr.ChatInterface(
             fn=chat_with_meetings,
             title="Meeting Q&A Assistant",
-            description="Ask questions about your transcribed meetings. The AI will search through stored transcripts to provide accurate answers.",
+            description="Ask questions about your transcribed meetings. The AI uses RAG (Retrieval-Augmented Generation) to search through stored transcripts and provide natural language answers.",
             examples=[
                 "What were the main action items from the meetings?",
                 "Who was responsible for the marketing presentation?",
-                "What was decided about the Q4 budget?"
+                "What was decided about the Q4 budget?",
+                "Summarize the key discussion points"
             ]
         )
 
