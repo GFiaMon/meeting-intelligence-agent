@@ -4,6 +4,8 @@ from core.transcription_service import TranscriptionService
 from core.pinecone_manager import PineconeManager
 from core.rag_pipeline import process_transcript_to_documents
 import uuid
+from datetime import datetime
+import os
 
 # Initialize services
 transcription_svc = TranscriptionService()
@@ -32,7 +34,7 @@ def transcribe_video_interface(video_file, progress=gr.Progress()):
     except Exception as e:
         return f"Error: {str(e)}", "Failed", None, gr.Group(visible=False)
 
-def upload_to_pinecone(transcription_data):
+def upload_to_pinecone(transcription_data, video_file):
     if not pinecone_available or not pinecone_mgr:
         return "❌ Pinecone service is not available. Check your API key."
         
@@ -47,10 +49,24 @@ def upload_to_pinecone(transcription_data):
         # Generate a unique meeting ID
         meeting_id = f"meeting_{uuid.uuid4().hex[:8]}"
         
-        docs = process_transcript_to_documents(text, segments, meeting_id)
+        meeting_metadata = {
+            "meeting_date": datetime.now().strftime("%Y-%m-%d"),
+            "source_file": os.path.basename(video_file) if video_file else "unknown",
+            "transcription_model": "whisperx-large-v2",
+            "language": raw_data.get("language", "en")
+        }
+        
+        # Process transcript with semantic grouping and rich metadata
+        docs = process_transcript_to_documents(
+            text, 
+            segments, 
+            meeting_id,
+            meeting_metadata=meeting_metadata
+        )
+        
         pinecone_mgr.upsert_documents(docs, namespace="default")
         
-        return f"✅ Successfully uploaded {len(docs)} documents to Pinecone! (ID: {meeting_id})"
+        return f"✅ Successfully uploaded {len(docs)} documents to Pinecone! (ID: {meeting_id})\n📊 Avg chunk size: {sum(d.metadata['char_count'] for d in docs) // len(docs)} chars"
     except Exception as e:
         return f"❌ Error uploading: {str(e)}"
 
@@ -86,6 +102,7 @@ def chat_with_meetings(message, history):
 # --- Gradio Interface ---
 with gr.Blocks(title="Meeting Agent - Diarization") as demo:
     transcription_state = gr.State()
+    video_file_state = gr.State()  # Store video file path
 
     gr.Markdown("# 🎬 Meeting Agent: Video Speaker Diarization")
     gr.Markdown("Upload your **Zoom** MP4 to identify who said what.")
@@ -113,11 +130,18 @@ with gr.Blocks(title="Meeting Agent - Diarization") as demo:
 
     upload_section = gr.Group(visible=False)
 
+    def transcribe_and_store_video(video_file, progress=gr.Progress()):
+        """Wrapper to transcribe and store video file path."""
+        result = transcribe_video_interface(video_file, progress)
+        # Return transcription results + video file path for state
+        return result[0], result[1], result[2], result[3], video_file
+
     transcribe_btn.click(
-        fn=transcribe_video_interface,
+        fn=transcribe_and_store_video,
         inputs=video_input,
-        outputs=[output_text, timing_info, transcription_state, upload_section]
+        outputs=[output_text, timing_info, transcription_state, upload_section, video_file_state]
     )
+    
     with upload_section:
         gr.Markdown("### 📦 Store Transcription")
         upload_status = gr.Textbox(
@@ -129,7 +153,7 @@ with gr.Blocks(title="Meeting Agent - Diarization") as demo:
         
         upload_btn.click(
             fn=upload_to_pinecone,
-            inputs=[transcription_state],
+            inputs=[transcription_state, video_file_state],
             outputs=[upload_status]
         )
     

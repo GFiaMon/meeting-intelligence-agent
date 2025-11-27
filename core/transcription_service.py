@@ -82,6 +82,7 @@ class TranscriptionService:
                     progress_callback(0.5, "⏱️ Aligning timestamps...")
                 print("4️⃣ Aligning word-level timestamps...")
                 
+                # Load the alignment model and its metadata from whisperx for word-level timestamp alignment.
                 model_a, metadata = whisperx.load_align_model(
                     language_code=result["language"],
                     device=self.config.DEVICE
@@ -126,7 +127,7 @@ class TranscriptionService:
                 # STEP 6: Format results
                 # ======================
                 processing_time = time.time() - start_time
-                transcription = self._format_results(result)
+                transcription = self._format_results(result, video_file_path)
                 timing_info = self._get_timing_info(result, processing_time, video_file_path)
                 
                 return {
@@ -147,15 +148,36 @@ class TranscriptionService:
                 }
     
 
-    def _format_results(self, result):
-        """Format transcription with speaker labels"""
+    def _format_results(self, result, video_file_path):
+        """Format transcription with speaker labels and comprehensive meeting metadata"""
         if not result["segments"]:
             return "No transcription segments found"
         
-        output = "## 🎯 Transcription with Speaker Identification\n\n"
-        current_speaker = None
+        # Extract meeting metadata
+        segments = result["segments"]
+        speakers = set(segment.get("speaker", "UNKNOWN") for segment in segments)
+        total_duration = segments[-1]["end"] if segments else 0
+        language = result.get("language", "unknown")
         
-        for segment in result["segments"]:
+        # Calculate statistics
+        total_words = sum(len(seg.get("text", "").split()) for seg in segments)
+        avg_segment_length = total_words / len(segments) if segments else 0
+        
+        # Build header with meeting context
+        output = "# 🎯 Meeting Transcription\n\n"
+        output += "## 📋 Meeting Information\n\n"
+        output += f"**📁 File:** `{os.path.basename(video_file_path)}`\n"
+        output += f"**📅 Date:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+        output += f"**⏱️ Duration:** {self._format_timestamp(total_duration)}\n"
+        output += f"**👥 Speakers:** {len(speakers)}\n"
+        output += f"**🌐 Language:** {language.upper()}\n"
+        output += f"**🤖 Model:** {self.config.WHISPER_MODEL}\n\n"
+        output += "---\n\n"
+        output += "## 💬 Transcript\n\n"
+        
+        # Add transcript content
+        current_speaker = None
+        for segment in segments:
             speaker = segment.get("speaker", "UNKNOWN")
             start_time = self._format_timestamp(segment["start"])
             
@@ -165,9 +187,14 @@ class TranscriptionService:
             
             output += f"[{start_time}] {segment['text'].strip()}\n"
         
-        # Add summary
-        speakers = set(segment.get("speaker", "UNKNOWN") for segment in result["segments"])
-        output += f"\n---\n**Speakers:** {len(speakers)} | **Segments:** {len(result['segments'])}"
+        # Add comprehensive footer
+        output += "\n---\n\n"
+        output += "## 📊 Transcript Statistics\n\n"
+        output += f"**Total Segments:** {len(segments)}\n"
+        output += f"**Total Words:** {total_words:,}\n"
+        output += f"**Avg Words/Segment:** {avg_segment_length:.1f}\n"
+        output += f"**Unique Speakers:** {len(speakers)}\n"
+        output += f"**Speaker IDs:** {', '.join(sorted(speakers))}\n"
         
         return output
     
