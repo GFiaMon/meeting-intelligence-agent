@@ -1,33 +1,31 @@
 # app.py
 # Standard library imports
 import os
-import re
 import uuid
 from datetime import datetime
 
 # Third-party library imports
 import gradio as gr
-from langchain.chains import ConversationalRetrievalChain
-from langchain.memory import ConversationBufferMemory
-from langchain.prompts import PromptTemplate
-from langchain_core.messages import HumanMessage, AIMessage
-from langchain_openai import ChatOpenAI
 
 # Local/custom imports
 from config import Config
 from core.pinecone_manager import PineconeManager
 from core.rag_pipeline import process_transcript_to_documents
 from core.transcription_service import TranscriptionService
+from core.rag_agent_service import RagAgentService
 
 # Initialize services
 transcription_svc = TranscriptionService()
 try:
     pinecone_mgr = PineconeManager()
     pinecone_available = True
+    # Initialize RAG Agent Service
+    rag_agent = RagAgentService(pinecone_mgr)
 except Exception as e:
     print(f"Warning: Pinecone not available: {e}")
     pinecone_mgr = None
     pinecone_available = False
+    rag_agent = None
 
 def transcribe_video_interface(video_file, progress=gr.Progress()):
     """Clean interface - no business logic"""
@@ -41,37 +39,39 @@ def transcribe_video_interface(video_file, progress=gr.Progress()):
         if not result.get("success", False):
             return f"Error: {result.get('error', 'Unknown error')}", "Failed", None, gr.Group(visible=False)
             
-        return result["transcription"], result["timing_info"], result, gr.Group(visible=True)
+        return result["transcription"], result["timing_info"], gr.Group(visible=True)
         
     except Exception as e:
         return f"Error: {str(e)}", "Failed", None, gr.Group(visible=False)
 
-def upload_to_pinecone(transcription_data, video_file):
+def upload_to_pinecone_interface(transcription, timing_info, video_file):
+    """Interface for uploading to Pinecone"""
     if not pinecone_available or not pinecone_mgr:
-        return "❌ Pinecone service is not available. Check your API key."
-        
-    if not transcription_data:
-        return "❌ No transcription data found. Please transcribe a video first."
+        return "❌ Pinecone service is not available. Please check your API key configuration."
+    
+    if not transcription:
+        return "⚠️ No transcription to upload. Please transcribe a video first."
         
     try:
-        text = transcription_data.get("transcription", "")
-        raw_data = transcription_data.get("raw_data", {})
-        segments = raw_data.get("segments", [])
-        
         # Generate a unique meeting ID
         meeting_id = f"meeting_{uuid.uuid4().hex[:8]}"
+        meeting_date = datetime.now().strftime("%Y-%m-%d")
         
+        # Create metadata
         meeting_metadata = {
-            "meeting_date": datetime.now().strftime("%Y-%m-%d"),
+            "meeting_id": meeting_id,
+            "date": meeting_date,
+            "source": "video_upload",
+            "title": f"Meeting {meeting_date}",
             "source_file": os.path.basename(video_file) if video_file else "unknown",
             "transcription_model": "whisperx-large-v2",
-            "language": raw_data.get("language", "en")
+            "language": timing_info.get("language", "en") # Assuming timing_info contains raw_data
         }
         
-        # Process transcript with semantic grouping and rich metadata
+        # Process and upload
         docs = process_transcript_to_documents(
-            text, 
-            segments, 
+            transcription, 
+            timing_info.get("segments", []), # Assuming timing_info contains raw_data with segments
             meeting_id,
             meeting_metadata=meeting_metadata
         )
@@ -80,135 +80,40 @@ def upload_to_pinecone(transcription_data, video_file):
         
         return f"✅ Successfully uploaded {len(docs)} documents to Pinecone! (ID: {meeting_id})\n📊 Avg chunk size: {sum(d.metadata['char_count'] for d in docs) // len(docs)} chars"
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"Error uploading to Pinecone: {error_details}")
         return f"❌ Error uploading: {str(e)}"
 
 def chat_with_meetings(message, history):
-    """Query stored meeting transcriptions using RAG with LangChain ConversationalRetrievalChain"""
-    if not pinecone_available or not pinecone_mgr:
-        return "❌ Pinecone service is not available. Please check your API key configuration."
+    """
+    Query stored meeting transcriptions using the RagAgentService.
+    Yields "thinking" status updates and then the final response.
+    """
+    if not rag_agent:
+        # When type="messages", we must return a list of messages
+        from gradio import ChatMessage
+        yield [ChatMessage(role="assistant", content="❌ RAG Agent service is not available. Please check your configuration.")]
+        return
     
+    # Delegate to the service generator
+    # Gradio ChatInterface supports generators for streaming
     try:
-        # Initialize LLM
-        llm = ChatOpenAI(
-            model=Config.MODEL_NAME,
-            temperature=0.7,
-            openai_api_key=Config.OPENAI_API_KEY
-        )
-        
-        # Dynamic retrieval strategy based on query intent
-        query_lower = message.lower()
-        
-        # Check for meeting_id in query (e.g., "meeting_abc12345")
-        meeting_id_match = re.search(r'meeting_([a-f0-9]{8})', message)
-        meeting_id = meeting_id_match.group(0) if meeting_id_match else None
-        
-        # Determine optimal k and filters based on query type
-        comprehensive_keywords = ["summarize", "summary", "all", "entire", "complete", "overview", "everything", "full"]
-        is_comprehensive = any(keyword in query_lower for keyword in comprehensive_keywords)
-        
-        if meeting_id and is_comprehensive:
-            # Specific meeting summary - retrieve ALL chunks from that meeting
-            search_kwargs = {
-                "k": 100,  # High k to ensure we get all chunks
-                "filter": {"meeting_id": {"$eq": meeting_id}}
-            }
-        elif is_comprehensive:
-            # General comprehensive question - retrieve many chunks
-            search_kwargs = {"k": 20}
-        else:
-            # Specific question - semantic search with moderate k
-            search_kwargs = {"k": 5}
-        
-        # Get retriever with dynamic search parameters
-        retriever = pinecone_mgr.get_retriever(
-            namespace="default",
-            search_kwargs=search_kwargs
-        )
-        
-        # Create custom prompt template for meeting context
-        prompt_template = """You are a helpful meeting assistant. Use the provided meeting transcript excerpts to answer questions accurately and concisely.
-
-When answering:
-- Reference specific speakers when relevant (e.g., "SPEAKER_00 mentioned...")
-- Include timestamps if they help provide context
-- If the context doesn't contain the answer, say so clearly
-- Be conversational and natural
-
-Context from meetings:
-{context}
-
-Question: {question}
-
-Answer:"""
-        
-        PROMPT = PromptTemplate(
-            template=prompt_template,
-            input_variables=["context", "question"]
-        )
-        
-        # Create memory and populate with history
-        memory = ConversationBufferMemory(
-            memory_key="chat_history",
-            return_messages=True,
-            output_key="answer"
-        )
-        
-        # Add Gradio history to memory with robust error handling
-        for i, entry in enumerate(history):
-            try:
-                user_msg = None
-                assistant_msg = None
-                
-                # Handle list/tuple format: [user, bot] or (user, bot)
-                if isinstance(entry, (list, tuple)):
-                    if len(entry) >= 2:
-                        user_msg = entry[0]
-                        assistant_msg = entry[1]
-                    elif len(entry) == 1:
-                        user_msg = entry[0]
-                
-                # Handle dictionary format (OpenAI style)
-                elif isinstance(entry, dict):
-                    if "role" in entry and "content" in entry:
-                        if entry["role"] == "user":
-                            user_msg = entry["content"]
-                        elif entry["role"] == "assistant":
-                            assistant_msg = entry["content"]
-                
-                # Add to memory if valid
-                if user_msg:
-                    memory.chat_memory.add_user_message(str(user_msg))
-                if assistant_msg:
-                    memory.chat_memory.add_ai_message(str(assistant_msg))
-                    
-            except Exception as e:
-                print(f"⚠️ Warning: Could not parse history entry {i}: {entry} - {e}")
-                continue
-        
-        # Create ConversationalRetrievalChain
-        chain = ConversationalRetrievalChain.from_llm(
-            llm=llm,
-            retriever=retriever,
-            memory=memory,
-            combine_docs_chain_kwargs={"prompt": PROMPT},
-            return_source_documents=True,
-            verbose=False  # Set to True for debugging
-        )
-        
-        # Run the chain
-        result = chain({"question": message})
-        
-        return result["answer"]
-        
+        # Note: When type="messages", history is passed as a list of ChatMessage objects
+        for response_chunk in rag_agent.generate_response(message, history):
+            yield response_chunk
+            
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"Error in chat_with_meetings: {error_details}")
-        return f"❌ Error querying meetings: {str(e)}"
+        from gradio import ChatMessage
+        yield [ChatMessage(role="assistant", content=f"❌ Error in chat service: {str(e)}")]
 
 # --- Gradio Interface ---
 with gr.Blocks(title="Meeting Agent - Diarization") as demo:
-    transcription_state = gr.State()
+    transcription_text_state = gr.State() # Stores the transcription text
+    transcription_timing_state = gr.State() # Stores the timing_info dictionary
     video_file_state = gr.State()  # Store video file path
 
     gr.Markdown("# 🎬 Meeting Agent: Video Speaker Diarization")
@@ -239,14 +144,31 @@ with gr.Blocks(title="Meeting Agent - Diarization") as demo:
 
     def transcribe_and_store_video(video_file, progress=gr.Progress()):
         """Wrapper to transcribe and store video file path."""
-        result = transcribe_video_interface(video_file, progress)
-        # Return transcription results + video file path for state
-        return result[0], result[1], result[2], result[3], video_file
+        # result contains: transcription, timing_info, group_update
+        transcription, timing, group_update = transcribe_video_interface(video_file, progress)
+        
+        # Return: output_text, timing_info_md, text_state, timing_state, group_update, video_file_state
+        # Note: timing is a dict, but timing_info output expects markdown string? 
+        # Actually transcribe_video_interface returns timing_info as dict usually.
+        # Let's check transcribe_video_interface return signature.
+        # It returns: result["transcription"], result["timing_info"], gr.Group(visible=True)
+        
+        # We need to format timing info for the Markdown output
+        timing_md = f"### ⏱️ Timing\n- Duration: {timing.get('duration', 'N/A')}s\n- Language: {timing.get('language', 'N/A')}"
+        
+        return transcription, timing_md, transcription, timing, group_update, video_file
 
     transcribe_btn.click(
         fn=transcribe_and_store_video,
         inputs=video_input,
-        outputs=[output_text, timing_info, transcription_state, upload_section, video_file_state]
+        outputs=[
+            output_text,                # Textbox
+            timing_info,                # Markdown
+            transcription_text_state,   # State (Text)
+            transcription_timing_state, # State (Dict)
+            upload_section,             # Group
+            video_file_state            # State (File path)
+        ]
     )
     
     with upload_section:
@@ -259,8 +181,8 @@ with gr.Blocks(title="Meeting Agent - Diarization") as demo:
         upload_btn = gr.Button("💾 Upload to Pinecone", variant="secondary")
         
         upload_btn.click(
-            fn=upload_to_pinecone,
-            inputs=[transcription_state, video_file_state],
+            fn=upload_to_pinecone_interface,
+            inputs=[transcription_text_state, transcription_timing_state, video_file_state],
             outputs=[upload_status]
         )
     
@@ -272,6 +194,7 @@ with gr.Blocks(title="Meeting Agent - Diarization") as demo:
         # Use your existing chatbot interface
         chatbot = gr.ChatInterface(
             fn=chat_with_meetings,
+            # type="messages",  # Removed: causing TypeError in Gradio 6.0.1
             title="Meeting Q&A Assistant",
             description="Ask questions about your transcribed meetings. The AI uses RAG (Retrieval-Augmented Generation) to search through stored transcripts and provide natural language answers.",
             examples=[

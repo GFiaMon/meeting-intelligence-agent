@@ -1,137 +1,175 @@
-import os
-from openai import OpenAI
-from typing import List, Dict, Any, Iterator
+import re
+from typing import List, Dict, Any, Generator, Union
+from gradio import ChatMessage
+from langchain_openai import ChatOpenAI
+from langchain.prompts import PromptTemplate
+from langchain_core.messages import HumanMessage, AIMessage
+from langchain.chains import ConversationalRetrievalChain
+from langchain.memory import ConversationBufferMemory
 
 from config import Config
 
-
-# --- API Configuration ---
-
-OPENAI_API_KEY = Config.OPENAI_API_KEY
-MODEL_NAME = Config.MODEL_NAME
-
-def initialize_openai_client() -> OpenAI | None:
-    """Initializes and returns the OpenAI client."""
-    if OPENAI_API_KEY:
-        try:
-            client = OpenAI(api_key=OPENAI_API_KEY)
-            print("✅ OpenAI client initialized for RAG Agent.")
-            return client
-        except Exception as e:
-            print(f"❌ OpenAI client initialization error in RAG Agent: {e}")
-            return None
-    return None
-
-def rag_logic(
-    client: OpenAI,
-    pinecone_mgr: Any, # Expecting PineconeManager instance
-    message: str,
-    history: List[List[str]]
-) -> Iterator[str | Dict[str, Any]]:
+class RagAgentService:
     """
-    Core RAG and LLM generation logic. It handles retrieval, prompt building,
-    and streaming the LLM response.
-
-    Yields thought logs (dict) for UI updates and then the final streaming text (str).
+    Service for handling RAG-based chatbot interactions.
+    Encapsulates retrieval logic, LLM generation, and history management.
     """
     
-    # 1. Yield Initial Search Thought
-    yield {
-        "title": "🔍 Searching Meetings",
-        "log": f"Querying Pinecone for: '{message}'...",
-        "status": "pending"
-    }
-    
-    # 2. Search Pinecone for relevant meeting content
-    relevant_content = ""
-    try:
-        # Use the injected PineconeManager to query
-        search_results = pinecone_mgr.query_index(query=message, top_k=3, namespace="default")
+    def __init__(self, pinecone_manager):
+        self.pinecone_mgr = pinecone_manager
+        self.llm = ChatOpenAI(
+            model=Config.MODEL_NAME,
+            temperature=0.7,
+            openai_api_key=Config.OPENAI_API_KEY,
+            streaming=True
+        )
         
-        if search_results and "matches" in search_results:
-            
-            for match in search_results["matches"][:3]: 
-                if "metadata" in match:
-                    # Extract meeting segment information
-                    text = match["metadata"].get("text", "")[:500] 
-                    meeting_id = match["metadata"].get("meeting_id", "Unknown")
-                    speaker = match["metadata"].get("speaker", "N/A")
-                    
-                    relevant_content += (
-                        f"\n\n--- Source: Meeting {meeting_id} (Speaker {speaker}) ---\n"
-                        f"{text}"
-                    )
-            
-            yield {
-                "title": "✅ Retrieval Complete",
-                "log": f"Found {len(search_results['matches'])} relevant meeting segments.",
-                "status": "done"
+    def _get_retrieval_kwargs(self, query: str) -> Dict[str, Any]:
+        """
+        Determines dynamic retrieval parameters based on query intent.
+        """
+        query_lower = query.lower()
+        
+        # Check for meeting_id in query (e.g., "meeting_abc12345")
+        meeting_id_match = re.search(r'meeting_([a-f0-9]{8})', query)
+        meeting_id = meeting_id_match.group(0) if meeting_id_match else None
+        
+        # Determine optimal k and filters based on query type
+        comprehensive_keywords = ["summarize", "summary", "all", "entire", "complete", "overview", "everything", "full"]
+        is_comprehensive = any(keyword in query_lower for keyword in comprehensive_keywords)
+        
+        if meeting_id and is_comprehensive:
+            # Specific meeting summary - retrieve ALL chunks from that meeting
+            return {
+                "k": 100,  # High k to ensure we get all chunks
+                "filter": {"meeting_id": {"$eq": meeting_id}}
             }
-            
+        elif is_comprehensive:
+            # General comprehensive question - retrieve many chunks
+            return {"k": 20}
         else:
-            yield {
-                "title": "⚠️ No Content Found",
-                "log": "No relevant meeting transcripts were retrieved.",
-                "status": "done"
+            # Specific question - semantic search with moderate k
+            return {"k": 5}
+
+    def generate_response(self, message: str, history: List[Union[ChatMessage, Dict]]) -> Generator[List[ChatMessage], None, None]:
+        """
+        Generates a response using RAG, yielding a list of ChatMessages to support
+        rich UI with 'thinking' steps.
+        """
+        # 1. Prepare the chat messages list (History + New User Message)
+        # Handle both ChatMessage objects and dictionaries (Gradio 6.x standard format)
+        chat_messages = []
+        for msg in history:
+            if isinstance(msg, dict):
+                chat_messages.append(ChatMessage(role=msg.get("role"), content=msg.get("content")))
+            elif isinstance(msg, ChatMessage):
+                chat_messages.append(msg)
+            # Handle list/tuple format [user, bot] if necessary (older Gradio)
+            elif isinstance(msg, (list, tuple)) and len(msg) == 2:
+                chat_messages.append(ChatMessage(role="user", content=msg[0]))
+                chat_messages.append(ChatMessage(role="assistant", content=msg[1]))
+                
+        chat_messages.append(ChatMessage(role="user", content=message))
+        
+        if not self.pinecone_mgr:
+            chat_messages.append(ChatMessage(role="assistant", content="❌ Pinecone service is not available. Please check your API key configuration."))
+            yield chat_messages
+            return
+
+        # 2. Add the initial 'Thinking' message
+        thought_message = ChatMessage(
+            role="assistant",
+            content=f"Analyzing request: '{message}'...",
+            metadata={
+                "title": "🧠 Thinking Process",
+                "log": "Initializing RAG pipeline...",
+                "status": "pending"
             }
-    except Exception as e:
-        yield {
-            "title": "❌ Retrieval Failed",
-            "log": f"Storage error during search: {str(e)}",
-            "status": "done"
-        }
-        return
+        )
+        chat_messages.append(thought_message)
+        yield chat_messages
 
-    # 3. Prepare context-aware prompt
-    system_prompt = f"""You are a helpful meeting assistant. Use the provided meeting transcripts to answer questions accurately and concisely. If no relevant meetings are provided, inform the user you could not find a source, then answer based on general knowledge if possible.
-
-Available meeting context:
-{relevant_content if relevant_content else "No meeting context available."}"""
-
-    user_prompt = f"Question: {message}"
-
-    # 4. Prepare messages for OpenAI
-    openai_messages = [{"role": "system", "content": system_prompt}]
-    
-    # Add conversation history
-    for user_msg, assistant_msg in history:
-        if user_msg:
-            openai_messages.append({"role": "user", "content": user_msg})
-        if assistant_msg:
-            openai_messages.append({"role": "assistant", "content": assistant_msg})
-            
-    openai_messages.append({"role": "user", "content": user_prompt})
-
-    # 5. Yield Generation Thought
-    yield {
-        "title": "🧠 Generating Response",
-        "log": f"Using {MODEL_NAME} with context...",
-        "status": "pending"
-    }
-    
-    # 6. Stream the LLM response
-    if client:
+        # 3. Retrieval Step
+        search_kwargs = self._get_retrieval_kwargs(message)
+        k_value = search_kwargs.get("k", 5)
+        
+        # Update thought log
+        thought_message.metadata["log"] += f"\n🔍 Retrieval Strategy: Fetching top {k_value} segments..."
+        yield chat_messages
+        
+        docs = []
         try:
-            stream = client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=openai_messages,
-                stream=True,
+            retriever = self.pinecone_mgr.get_retriever(
+                namespace="default",
+                search_kwargs=search_kwargs
             )
+            docs = retriever.get_relevant_documents(message)
             
-            # Stream text chunks directly
-            for chunk in stream:
-                content = chunk.choices[0].delta.content
-                if content is not None:
-                    yield content # Yields the raw text chunk
+            if not docs:
+                thought_message.metadata["log"] += "\n⚠️ No relevant documents found."
+            else:
+                thought_message.metadata["log"] += f"\n✅ Found {len(docs)} relevant segments."
+                
+            yield chat_messages
+                
+        except Exception as e:
+            thought_message.metadata["log"] += f"\n❌ Retrieval Error: {str(e)}"
+            thought_message.metadata["status"] = "done"
+            chat_messages.append(ChatMessage(role="assistant", content=f"Error during retrieval: {str(e)}"))
+            yield chat_messages
+            return
+
+        # 4. Generation Step
+        thought_message.metadata["log"] += f"\n🧠 Generating response with {Config.MODEL_NAME}..."
+        yield chat_messages
+        
+        # Prepare prompt context
+        context_str = "\n\n".join([d.page_content for d in docs])
+        
+        # Convert history to LangChain format for the prompt (if needed) or just use messages
+        # We'll construct the messages for the LLM directly
+        from langchain.schema import SystemMessage, HumanMessage, AIMessage as LC_AIMessage
+        
+        llm_messages = [
+            SystemMessage(content="You are a helpful meeting assistant. Use the provided meeting transcript excerpts to answer questions accurately and concisely.")
+        ]
+        
+        # Add history to LLM messages
+        # We iterate over chat_messages which we know contains ChatMessage objects
+        # Skip the last one (current user message) as we add it with context below
+        # Also skip the thought messages (metadata present)
+        for msg in chat_messages[:-1]:
+            if msg.metadata: # Skip thought messages
+                continue
+                
+            if msg.role == "user":
+                llm_messages.append(HumanMessage(content=msg.content))
+            elif msg.role == "assistant":
+                llm_messages.append(LC_AIMessage(content=msg.content))
+                
+        # Add current context and question
+        llm_messages.append(HumanMessage(content=f"Context:\n{context_str}\n\nQuestion: {message}"))
+        
+        # Initialize final response message
+        final_response = ChatMessage(role="assistant", content="")
+        chat_messages.append(final_response)
+        
+        # Stream response
+        try:
+            full_response = ""
+            for chunk in self.llm.stream(llm_messages):
+                if chunk.content:
+                    full_response += chunk.content
+                    final_response.content = full_response
+                    yield chat_messages
             
-            # Final yield to indicate success
-            yield {
-                "title": "✅ Generation Complete",
-                "log": "Response streamed successfully.",
-                "status": "final"
-            }
+            # Mark thought as done
+            thought_message.metadata["status"] = "done"
+            thought_message.metadata["log"] += "\n✅ Generation complete."
+            yield chat_messages
             
         except Exception as e:
-            yield f"API error during generation: {str(e)}"
-    else:
-        yield "OpenAI client not available. Please check your API key."
+            thought_message.metadata["status"] = "done"
+            thought_message.metadata["log"] += f"\n❌ Generation Error: {str(e)}"
+            final_response.content += f"\n\nError generating response: {str(e)}"
+            yield chat_messages
