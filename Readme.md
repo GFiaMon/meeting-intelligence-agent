@@ -1,39 +1,3 @@
-**You're absolutely right!** For Hugging Face Spaces deployment, the main file needs to be `app.py` in the root. Here's the corrected structure:
-
-## 📁 Corrected Project Structure
-
-```
-meeting-agent-transcription-experiments/
-├── app.py                          # 🎯 MAIN APP (for Hugging Face)
-├── requirements.txt
-├── README.md
-├── .env.example
-├── .gitignore
-├── core/                           # Core backend modules
-│   ├── __init__.py
-│   ├── pinecone_manager.py
-│   ├── rag_pipeline.py
-│   ├── meeting_agent.py
-│   └── agent_tools.py
-├── archive_research/               # 🗂️ Research & experiments archive
-│   ├── v1_audio_transcriber.py
-│   ├── v2_video_transcriber.py
-│   ├── v3_speaker_diarization.py
-│   ├── v3_improved_diarization.py
-│   └── basic_chatbot_tests/
-├── utils/                          # Utilities
-│   ├── __init__.py
-│   ├── config.py
-│   ├── embedding_utils.py
-│   └── audio_utils.py
-└── assets/                         # For deployment assets
-    ├── sample_meeting.mp4
-    └── demo_instructions.md
-```
-
-## 📝 Updated README.md Structure
-
-```markdown
 # Meeting Intelligence Agent
 
 > Capstone Project: AI-powered meeting transcription and Q&A system
@@ -118,20 +82,35 @@ python-dotenv>=1.0.0
 
 ---
 
-*Ironhack M8 - GenAI Capstone | 9-Day Project Timeline*
+**You're absolutely right!** For Hugging Face Spaces deployment, the main file needs to be `app.py` in the root. Here's the corrected structure:
+
+## 📁 Corrected Project Structure
+
 ```
-
-## 🎯 Key Changes Made:
-
-1. **`app.py` in root** - Required for Hugging Face Spaces
-2. **`archive_research/` folder** - Clean separation of experiments
-3. **Clear deployment path** - Hugging Face compatible structure
-4. **Modular core** - Backend logic in `core/` directory
-5. **Assets folder** - For sample files and demo materials
-
-## 💡 Workflow Strategy:
-
-1. **Copy working code** from `archive_research/v3_*.py` into `app.py`
-2. **Build new components** in `core/` modules
-3. **Import and integrate** in `app.py`
-4. **Test locally** then deploy to Hugging Face
+meeting-agent-transcription-experiments/
+├── app.py                          # 🎯 MAIN APP (for Hugging Face)
+├── requirements.txt
+├── README.md
+├── .env.example
+├── .gitignore
+├── core/                           # Core backend modules
+│   ├── __init__.py
+│   ├── pinecone_manager.py
+│   ├── rag_pipeline.py
+│   ├── meeting_agent.py
+│   └── agent_tools.py
+├── archive_research/               # 🗂️ Research & experiments archive
+│   ├── v1_audio_transcriber.py
+│   ├── v2_video_transcriber.py
+│   ├── v3_speaker_diarization.py
+│   ├── v3_improved_diarization.py
+│   └── basic_chatbot_tests/
+├── utils/                          # Utilities
+│   ├── __init__.py
+│   ├── config.py
+│   ├── embedding_utils.py
+│   └── audio_utils.py
+└── assets/                         # For deployment assets
+    ├── sample_meeting.mp4
+    └── demo_instructions.md
+```
