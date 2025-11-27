@@ -1,0 +1,25 @@
+gradio>=4.0.0
+whisperx>=3.1.1
+torch>=2.0.0
+torchaudio>=2.0.0
+
+
+# Core LangChain (compatible with 0.3.x)
+langchain>=0.3.0,<0.4.0
+langchain-core>=0.3.0,<0.4.0
+langchain-openai>=0.3.0,<0.4.0
+langchain-pinecone>=0.2.0,<0.3.0
+langchain-community>=0.3.0,<0.4.0
+langchain-text-splitters>=0.3.0,<0.4.0
+
+# Vector Database
+pinecone-client>=6.0.0
+
+# OpenAI (using v2.x)
+openai>=2.0.0,<3.0.0
+
+# Environment
+python-dotenv>=1.0.0,<2.0.0
+
+# Tokenization
+tiktoken>=0.10.0,<1.0.0
