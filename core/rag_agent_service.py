@@ -68,7 +68,7 @@ class RagAgentService:
                 namespace="default",
                 search_kwargs=search_kwargs
             )
-            docs = retriever.get_relevant_documents(message)
+            docs = retriever.invoke(message)
         except Exception as e:
             yield f"Error during retrieval: {str(e)}"
             return

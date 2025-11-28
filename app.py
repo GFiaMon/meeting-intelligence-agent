@@ -12,7 +12,19 @@ from config import Config
 from core.pinecone_manager import PineconeManager
 from core.rag_pipeline import process_transcript_to_documents
 from core.transcription_service import TranscriptionService
-from core.rag_agent_service import RagAgentService
+
+# ============================================================
+# CONFIGURATION: Switch between RAG implementations
+# ============================================================
+USE_LANGGRAPH = True  # Set to True to use LangGraph implementation
+
+if USE_LANGGRAPH:
+    from core.rag_agent_langgraph import RagAgentLangGraph as RagAgentService
+    print("🔷 Using LangGraph-based RAG Agent")
+else:
+    from core.rag_agent_service import RagAgentService
+    print("🔶 Using Original RAG Agent")
+# ============================================================
 
 # Initialize services
 transcription_svc = TranscriptionService()
@@ -131,13 +143,17 @@ def chat_with_meetings(message, history):
         yield f"❌ Error in chat service: {str(e)}"
 
 # --- Gradio Interface ---
-with gr.Blocks(title="Meeting Agent - Diarization") as demo:
+
+# ============================================================
+# TAB 1: Video Transcription & Upload Interface
+# ============================================================
+with gr.Blocks() as transcription_interface:
     transcription_text_state = gr.State() # Stores the transcription text
     transcription_timing_state = gr.State() # Stores the timing_info dictionary
     video_file_state = gr.State()  # Store video file path
 
-    gr.Markdown("# 🎬 Meeting Agent: Video Speaker Diarization")
-    gr.Markdown("Upload your **Zoom** MP4 to identify who said what.")
+    gr.Markdown("# 📹 Video Transcription & Storage")
+    gr.Markdown("Upload your **Zoom** MP4 to identify who said what, then store it in Pinecone for AI-powered Q&A.")
     
     with gr.Row():
         with gr.Column():
@@ -147,7 +163,7 @@ with gr.Blocks(title="Meeting Agent - Diarization") as demo:
                 include_audio=True,
             )
             
-            transcribe_btn = gr.Button("🎬 Transcribe with Speakers", variant="primary")
+            transcribe_btn = gr.Button("🎬 Transcribe with Speakers", variant="primary", size="lg")
             
         with gr.Column():
             output_text = gr.Textbox(
@@ -166,12 +182,6 @@ with gr.Blocks(title="Meeting Agent - Diarization") as demo:
         """Wrapper to transcribe and store video file path."""
         # result contains: transcription, timing_info, group_update
         transcription, timing, group_update = transcribe_video_interface(video_file, progress)
-        
-        # Return: output_text, timing_info_md, text_state, timing_state, group_update, video_file_state
-        # Note: timing is a dict, but timing_info output expects markdown string? 
-        # Actually transcribe_video_interface returns timing_info as dict usually.
-        # Let's check transcribe_video_interface return signature.
-        # It returns: result["transcription"], result["timing_info"], gr.Group(visible=True)
         
         # We need to format timing info for the Markdown output
         timing_md = f"### ⏱️ Timing\n- Duration: {timing.get('duration', 'N/A')}s\n- Language: {timing.get('language', 'N/A')}"
@@ -192,38 +202,50 @@ with gr.Blocks(title="Meeting Agent - Diarization") as demo:
     )
     
     with upload_section:
-        gr.Markdown("### 📦 Store Transcription")
+        gr.Markdown("### 📦 Store Transcription in Pinecone")
         upload_status = gr.Textbox(
             label="Storage Status",
             value="Transcribe a video first...",
             interactive=False
         )
-        upload_btn = gr.Button("💾 Upload to Pinecone", variant="secondary")
+        upload_btn = gr.Button("💾 Upload to Pinecone", variant="secondary", size="lg")
         
         upload_btn.click(
             fn=upload_to_pinecone_interface,
             inputs=[transcription_text_state, transcription_timing_state, video_file_state],
             outputs=[upload_status]
         )
+
+# ============================================================
+# TAB 2: Chatbot Interface
+# ============================================================
+with gr.Blocks() as chatbot_interface:
+    gr.Markdown("# 💬 Ask About Your Meetings")
+    gr.Markdown("**Powered by LangChain ConversationalRetrievalChain** - Natural language answers with conversation memory")
+    gr.Markdown("💡 **Examples:** 'What were the main action items?', 'Who mentioned the budget?', 'What decisions were made?'")
     
-    with gr.Tab("💬 Ask About Meetings"):
-        gr.Markdown("### Ask questions about your stored meetings")
-        gr.Markdown("**Powered by LangChain ConversationalRetrievalChain** - Natural language answers with conversation memory")
-        gr.Markdown("Examples: 'What were the main action items?', 'Who mentioned the budget?', 'What decisions were made?'")
-        
-        # Use your existing chatbot interface
-        chatbot = gr.ChatInterface(
-            fn=chat_with_meetings,
-            # type="messages",  # Removed: causing TypeError in Gradio 6.0.1
-            title="Meeting Q&A Assistant",
-            description="Ask questions about your transcribed meetings. The AI uses RAG (Retrieval-Augmented Generation) to search through stored transcripts and provide natural language answers.",
-            examples=[
-                "What were the main action items from the meetings?",
-                "Who was responsible for the marketing presentation?",
-                "What was decided about the Q4 budget?",
-                "Summarize the key discussion points"
-            ]
-        )
+    # Use your existing chatbot interface
+    chatbot = gr.ChatInterface(
+        fn=chat_with_meetings,
+        # type="messages",  # Removed: causing TypeError in Gradio 6.0.1
+        title="Meeting Q&A Assistant",
+        description="Ask questions about your transcribed meetings. The AI uses RAG (Retrieval-Augmented Generation) to search through stored transcripts and provide natural language answers.",
+        examples=[
+            "What were the main action items from the meetings?",
+            "Who was responsible for the marketing presentation?",
+            "What was decided about the Q4 budget?",
+            "Summarize the key discussion points"
+        ]
+    )
+
+# ============================================================
+# Combine interfaces using TabbedInterface
+# ============================================================
+demo = gr.TabbedInterface(
+    interface_list=[transcription_interface, chatbot_interface],
+    tab_names=["📹 Video Transcription", "💬 Ask About Meetings"],
+    title="🎬 Meeting Intelligence Agent"
+)
 
 if __name__ == "__main__":
     demo.launch(

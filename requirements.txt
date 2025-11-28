@@ -12,6 +12,9 @@ langchain-pinecone>=0.2.0,<0.3.0
 langchain-community>=0.3.0,<0.4.0
 langchain-text-splitters>=0.3.0,<0.4.0
 
+# LangGraph for state-based agent workflows
+langgraph>=0.2.0,<0.3.0
+
 # Vector Database
 pinecone-client>=6.0.0
 
