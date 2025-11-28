@@ -85,21 +85,42 @@ def upload_to_pinecone_interface(transcription, timing_info, video_file):
         print(f"Error uploading to Pinecone: {error_details}")
         return f"❌ Error uploading: {str(e)}"
 
+# def chat_with_meetings(message, history):
+#     """
+#     Query stored meeting transcriptions using the RagAgentService.
+#     Yields "thinking" status updates and then the final response.
+#     """
+#     if not rag_agent:
+#         # When type="messages", we must return a list of messages
+#         from gradio import ChatMessage
+#         yield [ChatMessage(role="assistant", content="❌ RAG Agent service is not available. Please check your configuration.")]
+#         return
+    
+#     # Delegate to the service generator
+#     # Gradio ChatInterface supports generators for streaming
+#     try:
+#         # Note: When type="messages", history is passed as a list of ChatMessage objects
+#         for response_chunk in rag_agent.generate_response(message, history):
+#             yield response_chunk
+            
+#     except Exception as e:
+#         import traceback
+#         error_details = traceback.format_exc()
+#         print(f"Error in chat_with_meetings: {error_details}")
+#         from gradio import ChatMessage
+#         yield [ChatMessage(role="assistant", content=f"❌ Error in chat service: {str(e)}")]
+
 def chat_with_meetings(message, history):
     """
     Query stored meeting transcriptions using the RagAgentService.
-    Yields "thinking" status updates and then the final response.
+    Yields streaming responses.
     """
     if not rag_agent:
-        # When type="messages", we must return a list of messages
-        from gradio import ChatMessage
-        yield [ChatMessage(role="assistant", content="❌ RAG Agent service is not available. Please check your configuration.")]
+        yield "❌ RAG Agent service is not available."
         return
     
-    # Delegate to the service generator
-    # Gradio ChatInterface supports generators for streaming
+    # Delegate to the service generator - it now yields strings directly
     try:
-        # Note: When type="messages", history is passed as a list of ChatMessage objects
         for response_chunk in rag_agent.generate_response(message, history):
             yield response_chunk
             
@@ -107,8 +128,7 @@ def chat_with_meetings(message, history):
         import traceback
         error_details = traceback.format_exc()
         print(f"Error in chat_with_meetings: {error_details}")
-        from gradio import ChatMessage
-        yield [ChatMessage(role="assistant", content=f"❌ Error in chat service: {str(e)}")]
+        yield f"❌ Error in chat service: {str(e)}"
 
 # --- Gradio Interface ---
 with gr.Blocks(title="Meeting Agent - Diarization") as demo:
