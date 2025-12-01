@@ -14,7 +14,7 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app import chat_with_meetings, pinecone_available, pinecone_mgr
+from scratchpad.app_v1 import chat_with_meetings, pinecone_available, pinecone_mgr
 
 
 def test_chatbot_returns_natural_language():

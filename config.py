@@ -33,6 +33,31 @@ class Config:
     
     # Model Settings
     WHISPER_MODEL = "small" # Options: tiny, base, small, medium, large-v2, large-v3
+    
+    # MCP (Model Context Protocol) Settings
+    ENABLE_MCP = os.getenv("ENABLE_MCP", "false").lower() == "true"
+    # Read from NOTION_TOKEN (the variable name in .env)
+    NOTION_TOKEN = os.getenv("NOTION_TOKEN", "")
+    
+    # MCP Server Configurations
+    @staticmethod
+    def get_mcp_servers():
+        """Get MCP server configurations."""
+        if not Config.ENABLE_MCP or not Config.NOTION_TOKEN:
+            return {}
+
+        
+        return {
+            "notion": {
+                "command": "npx",
+                "args": ["-y", "@notionhq/notion-mcp-server"],
+                "transport": "stdio",
+                "env": {
+                    "NOTION_TOKEN": Config.NOTION_TOKEN  # Correct env var is NOTION_TOKEN
+                }
+            }
+        }
+
 
 # Enable LangSmith tracing if configured
 if Config.LANGCHAIN_TRACING_V2 == "true" and Config.LANGCHAIN_API_KEY:

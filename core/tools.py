@@ -39,7 +39,7 @@ def search_meetings(query: str, max_results: int = 5, meeting_id: Optional[str] 
     Args:
         query: The search query or question to find relevant meeting content
         max_results: Maximum number of results to return (default: 5)
-        meeting_id: Optional meeting ID to search within a specific meeting (e.g., "meeting_abc12345")
+        meeting_id: Optional meeting ID to search within a specific meeting (e.g., "meeting_abc12345"). DO NOT use indices like "1" or "2".
     
     Returns:
         A formatted string containing the most relevant meeting transcript segments

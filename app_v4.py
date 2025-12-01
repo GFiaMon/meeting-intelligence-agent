@@ -95,7 +95,7 @@ def convert_to_tuple_history(messages_history):
 # CHAT INTERFACE FUNCTION
 # ============================================================
 
-def chat_with_agent(message: Dict[str, Any], history):
+async def chat_with_agent(message: Dict[str, Any], history):
     """
     Main chat function for multimodal interface.
     
@@ -138,8 +138,8 @@ def chat_with_agent(message: Dict[str, Any], history):
         # Convert history to tuple format for agent
         tuple_history = convert_to_tuple_history(history) if history else []
         
-        # Delegate to agent
-        for response_chunk in agent.generate_response(text, tuple_history):
+        # Delegate to agent (async generator)
+        async for response_chunk in agent.generate_response(text, tuple_history):
             yield response_chunk
             
     except Exception as e:
@@ -213,5 +213,5 @@ if __name__ == "__main__":
         demo.launch(
             server_name="0.0.0.0",
             server_port=7862,
-            share=False
+            share=True
         )

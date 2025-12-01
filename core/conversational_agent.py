@@ -9,7 +9,7 @@ the entire meeting intelligence workflow through natural conversation, including
 - Meeting queries and analysis
 """
 
-from typing import List, Dict, Any, Generator, TypedDict, Optional, Annotated
+from typing import List, Dict, Any, TypedDict, Optional, Annotated
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
@@ -49,6 +49,11 @@ class ConversationalMeetingAgent:
     # Enhanced system prompt for conversational workflow
     SYSTEM_PROMPT = """You are a friendly and helpful Meeting Intelligence Assistant. You help users manage their meeting recordings through natural conversation.
 
+**IMPORTANT: Handling Meeting References**
+- If the user refers to a meeting by index (e.g., "meeting 1", "the second meeting"), you MUST first call `list_recent_meetings` to find the actual `meeting_id` (e.g., "meeting_abc123").
+- NEVER use "meeting 1" or "meeting 2" as a `meeting_id` in tool calls. Always map it to the real ID first.
+- If you are unsure which meeting the user means, ask for clarification or list the available meetings.
+
 **Your Capabilities:**
 
 You can help users with two main workflows:
@@ -80,6 +85,36 @@ You can help users with two main workflows:
 - `search_meetings`: Search meeting content semantically
 - `get_meeting_metadata`: Get meeting details
 
+**Notion Integration (Export & Documentation):**
+
+**IMPORTANT: You CAN and SHOULD use Notion tools when the user asks!**
+
+When the user asks to create/upload content to Notion:
+
+1. **Use `API-post-page` to create a new page**:
+   ```
+   API-post-page(
+       parent={"page_id": "2bc5a424-5cbb-80ec-8aa9-c4fd989e67bc"},
+       properties={"title": [{"text": {"content": "Your Page Title"}}]},
+       children=["Content goes here as a string"]
+   )
+   ```
+
+2. **Default Parent Page**: Use `2bc5a424-5cbb-80ec-8aa9-c4fd989e67bc` (the "Meetings Summary Test" page).
+
+3. **Alternative**: If the user specifies a different location, use `API-post-search(query="page name")` to find it first.
+
+**Available Tools:**
+- `API-post-page`: Create new pages (USE THIS!)
+- `API-post-search`: Search for pages
+- `API-append-block-children`: Add content to existing pages
+- `API-patch-page`: Update page properties
+
+**Example:**
+User: "Create a test page in Notion"
+You: Call `API-post-page(parent={"page_id": "2bc5a424-5cbb-80ec-8aa9-c4fd989e67bc"}, properties={"title": [{"text": {"content": "Test Page"}}]}, children=["This is a test"])`
+
+
 **Conversational Guidelines:**
 
 1. **Start with a Greeting**: When the conversation begins, greet the user warmly and ask "What would you like to do today?"
@@ -100,6 +135,10 @@ You can help users with two main workflows:
    - For "what meetings": call `list_recent_meetings`
    - For specific questions: call `search_meetings`
    - For meeting details: call `get_meeting_metadata`
+   - To create minutes/summaries: 
+     1. Identify the correct `meeting_id` (use `list_recent_meetings` if needed)
+     2. Call `search_meetings` with queries like "summary", "action items", "decisions", "key points"
+     3. Synthesize the results into a structured meeting minute format
    - Provide clear, actionable answers
 
 5. **Be Conversational**:
@@ -158,6 +197,7 @@ Would you like me to summarize any of these meetings?
 
 Remember: You're a helpful assistant focused on making meeting management effortless through natural conversation!"""
 
+
     def __init__(self, pinecone_manager, transcription_service):
         """
         Initialize the conversational agent.
@@ -173,8 +213,8 @@ Remember: You're a helpful assistant focused on making meeting management effort
         initialize_tools(pinecone_manager)
         initialize_video_tools(transcription_service, pinecone_manager)
         
-        # Combine all tools
-        self.tools = [
+        # Standard tools
+        standard_tools = [
             # Video processing tools
             request_video_upload,
             transcribe_uploaded_video,
@@ -188,6 +228,14 @@ Remember: You're a helpful assistant focused on making meeting management effort
             list_recent_meetings
         ]
         
+        # Load MCP tools (Notion integration)
+        mcp_tools = []
+        if Config.ENABLE_MCP:
+            mcp_tools = self._load_mcp_tools()
+        
+        # Combine all tools
+        self.tools = standard_tools + mcp_tools
+        
         # Create LLM with tool binding
         self.llm = ChatOpenAI(
             model=Config.MODEL_NAME,
@@ -198,6 +246,45 @@ Remember: You're a helpful assistant focused on making meeting management effort
         
         # Build the state graph
         self.graph = self._build_graph()
+
+    
+    def _load_mcp_tools(self):
+        """
+        Load MCP tools (Notion integration).
+        
+        Returns:
+            List of MCP tools in LangChain format
+        """
+        try:
+            import asyncio
+            from core.mcp_client import MCPClientManager
+            
+            # Get MCP server configurations
+            mcp_servers = Config.get_mcp_servers()
+            
+            if not mcp_servers:
+                print("⚠️  No MCP servers configured")
+                return []
+            
+            # Create MCP client manager
+            mcp_manager = MCPClientManager(mcp_servers)
+            
+            # Initialize and load tools (async)
+            success = asyncio.run(mcp_manager.initialize())
+            
+            if success:
+                tools = mcp_manager.get_langchain_tools()
+                print(f"✅ Integrated {len(tools)} MCP tools into agent")
+                return tools
+            else:
+                print("⚠️  MCP initialization failed")
+                return []
+                
+        except Exception as e:
+            print(f"⚠️  Failed to load MCP tools: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
     
     def _build_graph(self) -> StateGraph:
         """Builds the LangGraph state graph with tool support."""
@@ -295,9 +382,11 @@ Remember: You're a helpful assistant focused on making meeting management effort
         
         return "end"
     
-    def generate_response(self, message: str, history: List[List[str]]) -> Generator[str, None, None]:
+    async def generate_response(self, message: str, history: List[List[str]]):
         """
         Main entry point - generates a streaming response using the conversational agent.
+        
+        ASYNC VERSION: Required to support async MCP tools (Notion integration).
         
         Args:
             message: The user's current message
@@ -316,11 +405,11 @@ Remember: You're a helpful assistant focused on making meeting management effort
         }
         
         try:
-            # Use stream to get intermediate events
-            # This allows us to notify the user when tools are being called
+            # Use astream (async) to get intermediate events
+            # This is REQUIRED for async MCP tools to work properly
             final_response = ""
             
-            for event in self.graph.stream(initial_state):
+            async for event in self.graph.astream(initial_state):
                 # Handle agent events
                 if "agent" in event:
                     agent_update = event["agent"]
@@ -337,22 +426,31 @@ Remember: You're a helpful assistant focused on making meeting management effort
                                     yield "💾 Uploading to Pinecone...\n"
                                 elif tool_name == "search_meetings":
                                     yield "🔍 Searching your meetings...\n"
+                                elif "API-" in tool_name or "notion" in tool_name.lower():
+                                    yield f"📝 Calling Notion: {tool_name}...\n"
                         
                         # Check for final response (AIMessage without tool calls)
                         elif isinstance(last_msg, AIMessage) and last_msg.content:
                             final_response = last_msg.content
                             yield final_response
                 
+                # Handle tool execution events (to catch errors)
+                if "tools" in event:
+                    tools_update = event["tools"]
+                    # Check for tool errors
+                    if "llm_messages" in tools_update:
+                        for msg in tools_update["llm_messages"]:
+                            if hasattr(msg, "status") and msg.status == "error":
+                                yield f"⚠️  Tool error: {msg.content}\n"
+                
                 # Handle error events
                 if "error" in event:
                     yield f"❌ Error: {event['error']}"
                     return
 
-            # If we didn't get a final response in the stream (sometimes happens with complex graphs),
-            # check if we have one buffered
+            # If we didn't get a final response in the stream
             if not final_response:
-                # This part is a bit tricky with stream, but usually the last agent step provides the response
-                pass
+                yield "I'm thinking... (processing completed without final output)"
                 
         except Exception as e:
             import traceback
