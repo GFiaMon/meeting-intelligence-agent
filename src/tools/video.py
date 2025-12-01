@@ -11,9 +11,9 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from langchain.tools import tool
 
-from core.transcription_service import TranscriptionService
-from core.pinecone_manager import PineconeManager
-from core.rag_pipeline import process_transcript_to_documents
+from src.processing.transcription import TranscriptionService
+from src.retrievers.pinecone import PineconeManager
+from src.retrievers.pipeline import process_transcript_to_documents
 
 
 # Global references (will be set during initialization)

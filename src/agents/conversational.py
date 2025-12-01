@@ -16,9 +16,9 @@ from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 
-from config import Config
-from core.tools import search_meetings, get_meeting_metadata, list_recent_meetings, initialize_tools
-from core.video_tools import (
+from src.config.settings import Config
+from src.tools.general import search_meetings, get_meeting_metadata, list_recent_meetings, initialize_tools
+from src.tools.video import (
     request_video_upload,
     transcribe_uploaded_video,
     request_transcription_edit,
@@ -257,7 +257,7 @@ Remember: You're a helpful assistant focused on making meeting management effort
         """
         try:
             import asyncio
-            from core.mcp_client import MCPClientManager
+            from src.tools.mcp.mcp_client import MCPClientManager
             
             # Get MCP server configurations
             mcp_servers = Config.get_mcp_servers()

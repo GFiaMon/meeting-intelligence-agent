@@ -1,8 +1,8 @@
 import os
 from pinecone import Pinecone, ServerlessSpec
 from langchain_pinecone import PineconeVectorStore
-from config import Config
-from utils.embedding_utils import get_embedding_model
+from src.config.settings import Config
+from src.utils.embedding import get_embedding_model
 
 class PineconeManager:
     def __init__(self, index_name=None):

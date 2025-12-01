@@ -10,7 +10,7 @@ import warnings
 # Suppress specific pyannote/pytorch warning about degrees of freedom
 warnings.filterwarnings("ignore", message="std\(\): degrees of freedom is <= 0")
 
-from config import Config
+from src.config.settings import Config
 
 # CORRECT WAY: Import DiarizationPipeline at point of use
 from whisperx.diarize import DiarizationPipeline

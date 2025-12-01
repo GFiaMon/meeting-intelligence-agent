@@ -1,5 +1,5 @@
 from langchain_openai import OpenAIEmbeddings
-from config import Config
+from src.config.settings import Config
 
 def get_embedding_model():
     """

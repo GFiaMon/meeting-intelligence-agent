@@ -7,7 +7,7 @@ from langchain.prompts import PromptTemplate
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
-from config import Config
+from src.config.settings import Config
 
 class RagAgentService:
     """
