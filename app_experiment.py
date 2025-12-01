@@ -14,16 +14,10 @@ from core.rag_pipeline import process_transcript_to_documents
 from core.transcription_service import TranscriptionService
 
 # ============================================================
-# CONFIGURATION: Switch between RAG implementations
+# CONFIGURATION: Using Meeting Agent with Tools (Experimental)
 # ============================================================
-USE_LANGGRAPH = True  # Set to True to use LangGraph implementation
-
-if USE_LANGGRAPH:
-    from core.rag_agent_langgraph import RagAgentLangGraph as RagAgentService
-    print("🔷 Using LangGraph-based RAG Agent")
-else:
-    from core.rag_agent_service import RagAgentService
-    print("🔶 Using Original RAG Agent")
+from core.meeting_agent_with_tools import MeetingIntelligenceAgent #as RagAgentService
+print("🧪 Using Meeting Intelligence Agent with Tool Support (Experimental)")
 # ============================================================
 
 # Initialize services
@@ -32,7 +26,8 @@ try:
     pinecone_mgr = PineconeManager()
     pinecone_available = True
     # Initialize RAG Agent Service
-    rag_agent = RagAgentService(pinecone_mgr)
+    #rag_agent = RagAgentService(pinecone_mgr) #<-- No need to initialize it with an alias!
+    rag_agent = MeetingIntelligenceAgent(pinecone_mgr)
 except Exception as e:
     print(f"Warning: Pinecone not available: {e}")
     pinecone_mgr = None
@@ -42,21 +37,21 @@ except Exception as e:
 def transcribe_video_interface(video_file, progress=gr.Progress()):
     """Clean interface - no business logic"""
     try:
-        # Initialize progress bar
-        progress(0, desc="🚀 Starting...")
+        progress(0.2, desc="🔄 Processing...")
         
-        # Call service layer - it will handle all progress updates
+        # Call service layer
         result = transcription_svc.transcribe_video(video_file, progress_callback=progress)
         
+        progress(1.0, desc="✅ Complete!")
         if not result.get("success", False):
-            return f"Error: {result.get('error', 'Unknown error')}", "Failed", None, None, gr.Group(visible=False)
+            return f"Error: {result.get('error', 'Unknown error')}", "Failed", None, gr.Group(visible=False)
             
-        return result["transcription"], result["timing_info"], result["raw_data"], gr.Group(visible=True)
+        return result["transcription"], result["timing_info"], gr.Group(visible=True)
         
     except Exception as e:
-        return f"Error: {str(e)}", "Failed", None, None, gr.Group(visible=False)
+        return f"Error: {str(e)}", "Failed", None, gr.Group(visible=False)
 
-def upload_to_pinecone_interface(transcription, raw_data, video_file):
+def upload_to_pinecone_interface(transcription, timing_info, video_file):
     """Interface for uploading to Pinecone"""
     if not pinecone_available or not pinecone_mgr:
         return "❌ Pinecone service is not available. Please check your API key configuration."
@@ -77,13 +72,13 @@ def upload_to_pinecone_interface(transcription, raw_data, video_file):
             "title": f"Meeting {meeting_date}",
             "source_file": os.path.basename(video_file) if video_file else "unknown",
             "transcription_model": "whisperx-large-v2",
-            "language": raw_data.get("language", "en") if raw_data else "en"
+            "language": timing_info.get("language", "en") # Assuming timing_info contains raw_data
         }
         
         # Process and upload
         docs = process_transcript_to_documents(
             transcription, 
-            raw_data.get("segments", []) if raw_data else [],
+            timing_info.get("segments", []), # Assuming timing_info contains raw_data with segments
             meeting_id,
             meeting_metadata=meeting_metadata
         )
@@ -99,11 +94,11 @@ def upload_to_pinecone_interface(transcription, raw_data, video_file):
 
 def chat_with_meetings(message, history):
     """
-    Query stored meeting transcriptions using the RagAgentService.
+    Query stored meeting transcriptions using the MeetingIntelligenceAgent.
     Yields streaming responses.
     """
     if not rag_agent:
-        yield "❌ RAG Agent service is not available."
+        yield "❌ Meeting Intelligence Agent service is not available."
         return
     
     # Delegate to the service generator - it now yields strings directly
@@ -124,7 +119,7 @@ def chat_with_meetings(message, history):
 # ============================================================
 with gr.Blocks() as transcription_interface:
     transcription_text_state = gr.State() # Stores the transcription text
-    transcription_timing_state = gr.State() # Stores the raw_data dictionary (segments, language, etc.)
+    transcription_timing_state = gr.State() # Stores the timing_info dictionary
     video_file_state = gr.State()  # Store video file path
 
     gr.Markdown("# 📹 Video Transcription & Storage")
@@ -155,19 +150,13 @@ with gr.Blocks() as transcription_interface:
 
     def transcribe_and_store_video(video_file, progress=gr.Progress()):
         """Wrapper to transcribe and store video file path."""
-        # result contains: transcription, timing_info (string), raw_data (dict), group_update
-        transcription, timing_info_str, raw_data, group_update = transcribe_video_interface(video_file, progress)
+        # result contains: transcription, timing_info, group_update
+        transcription, timing, group_update = transcribe_video_interface(video_file, progress)
         
-        # Extract duration and language from raw_data for display
-        if raw_data and raw_data.get("segments"):
-            duration = raw_data["segments"][-1].get("end", 0)
-            language = raw_data.get("language", "N/A")
-            timing_md = f"### ⏱️ Timing\n- Duration: {duration:.1f}s\n- Language: {language}"
-        else:
-            # Fallback if raw_data is not available (error case)
-            timing_md = timing_info_str if timing_info_str else "### ⏱️ Timing\n- Duration: N/A\n- Language: N/A"
+        # We need to format timing info for the Markdown output
+        timing_md = f"### ⏱️ Timing\n- Duration: {timing.get('duration', 'N/A')}s\n- Language: {timing.get('language', 'N/A')}"
         
-        return transcription, timing_md, transcription, raw_data, group_update, video_file
+        return transcription, timing_md, transcription, timing, group_update, video_file
 
     transcribe_btn.click(
         fn=transcribe_and_store_video,
@@ -201,21 +190,21 @@ with gr.Blocks() as transcription_interface:
 # TAB 2: Chatbot Interface
 # ============================================================
 with gr.Blocks() as chatbot_interface:
-    gr.Markdown("# 💬 Ask About Your Meetings")
-    gr.Markdown("**Powered by LangChain ConversationalRetrievalChain** - Natural language answers with conversation memory")
-    gr.Markdown("💡 **Examples:** 'What were the main action items?', 'Who mentioned the budget?', 'What decisions were made?'")
+    gr.Markdown("# 💼 Meeting Intelligence Assistant (Experimental)")
+    gr.Markdown("**Powered by LangGraph with Tool Support** - Business-focused meeting analysis with semantic search tools")
+    gr.Markdown("💡 **Try:** 'What meetings do I have?', 'Summarize meeting_abc12345', 'What were the action items?'")
     
     # Use your existing chatbot interface
     chatbot = gr.ChatInterface(
         fn=chat_with_meetings,
         # type="messages",  # Removed: causing TypeError in Gradio 6.0.1
-        title="Meeting Q&A Assistant",
-        description="Ask questions about your transcribed meetings. The AI uses RAG (Retrieval-Augmented Generation) to search through stored transcripts and provide natural language answers.",
+        title="Meeting Intelligence Assistant",
+        description="Ask questions about your recorded meetings. The agent uses tools to search transcripts, extract action items, and provide business-focused summaries.",
         examples=[
-            "What were the main action items from the meetings?",
-            "Who was responsible for the marketing presentation?",
-            "What was decided about the Q4 budget?",
-            "Summarize the key discussion points"
+            "What meetings do I have available?",
+            "Summarize the key decisions from meeting_abc12345",
+            "What were the action items and who owns them?",
+            "Find all discussions about the budget"
         ]
     )
 
@@ -224,13 +213,13 @@ with gr.Blocks() as chatbot_interface:
 # ============================================================
 demo = gr.TabbedInterface(
     interface_list=[transcription_interface, chatbot_interface],
-    tab_names=["📹 Video Transcription", "💬 Ask About Meetings"],
-    title="🎬 Meeting Intelligence Agent"
+    tab_names=["📹 Video Transcription", "💼 Meeting Assistant"],
+    title="🧪 Meeting Intelligence Agent (Experimental - With Tools)"
 )
 
 if __name__ == "__main__":
     demo.launch(
         server_name="0.0.0.0",
-        server_port=7860,
+        server_port=7861,
         share=False
     )

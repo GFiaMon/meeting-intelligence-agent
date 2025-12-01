@@ -1,10 +1,11 @@
 import re
 from typing import List, Dict, Any, Generator, Union
-from langchain_openai import ChatOpenAI
-from langchain.prompts import PromptTemplate
-from langchain_core.messages import HumanMessage, AIMessage
+
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
+from langchain.prompts import PromptTemplate
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
 
 from config import Config
 
@@ -75,8 +76,6 @@ class RagAgentService:
 
         # Prepare context
         context_str = "\n\n".join([d.page_content for d in docs]) if docs else "No relevant documents found."
-        
-        from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
         
         # Build the system prompt with better instructions
         system_prompt = """You are a helpful meeting assistant. Answer questions based on the provided meeting transcript excerpts.

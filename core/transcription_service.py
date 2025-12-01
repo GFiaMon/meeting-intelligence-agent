@@ -5,6 +5,11 @@ import gc
 import time
 import os
 from datetime import datetime
+import warnings
+
+# Suppress specific pyannote/pytorch warning about degrees of freedom
+warnings.filterwarnings("ignore", message="std\(\): degrees of freedom is <= 0")
+
 from config import Config
 
 # CORRECT WAY: Import DiarizationPipeline at point of use
@@ -55,7 +60,13 @@ class TranscriptionService:
                 # STEP 1: Load Audio from Video
                 # ======================
                 if progress_callback:
-                    progress_callback(0.1, "🎬 Loading audio from video...")
+                    print(f"DEBUG: Calling progress callback 0.1. Type: {type(progress_callback)}")
+                    try:
+                        progress_callback(0.1, desc="🎬 Loading audio from video...")
+                        print("DEBUG: Progress callback 0.1 called successfully")
+                    except Exception as e:
+                        print(f"DEBUG: Error calling progress callback: {e}")
+                    time.sleep(0.5)
                 print("1️⃣ Loading audio directly from video...")
                 audio = whisperx.load_audio(video_file_path)
 
@@ -66,25 +77,29 @@ class TranscriptionService:
                 # ======================
                 print("2️⃣ Loading Whisper model...")
                 if progress_callback:
-                    progress_callback(0.3, "🤖 Loading Whisper model...")
+                    progress_callback(0.3, desc="🤖 Loading Whisper model...")
+                    time.sleep(0.5)
 
                 if progress_callback:
-                    progress_callback(0.4, "📝 Transcribing audio...")
+                    progress_callback(0.4, desc="📝 Transcribing audio...")
+                    time.sleep(0.5)
                 print("3️⃣ Transcribing audio...")
 
                 result = self.whisper_model.transcribe(audio, batch_size=self.batch_size)
-                print(f"✅ Transcription complete ({result['language']} detected)")            
+                detected_language = result['language']  # Save language before it gets lost
+                print(f"✅ Transcription complete ({detected_language} detected)")            
                 
                 # ======================
                 # STEP 3: Align Timestamps
                 # ======================
                 if progress_callback:
-                    progress_callback(0.5, "⏱️ Aligning timestamps...")
+                    progress_callback(0.5, desc="⏱️ Aligning timestamps...")
+                    time.sleep(0.5)
                 print("4️⃣ Aligning word-level timestamps...")
                 
                 # Load the alignment model and its metadata from whisperx for word-level timestamp alignment.
                 model_a, metadata = whisperx.load_align_model(
-                    language_code=result["language"],
+                    language_code=detected_language,
                     device=self.config.DEVICE
                 )
                 result = whisperx.align(
@@ -95,13 +110,16 @@ class TranscriptionService:
                     self.config.DEVICE,
                     return_char_alignments=False
                 )
+                # Restore language to result dict after alignment
+                result["language"] = detected_language
                 print("✅ Timestamps aligned")
                 
                 # ======================
                 # STEP 4: Speaker Diarization - CORRECT IMPORT
                 # ======================
                 if progress_callback:
-                    progress_callback(0.7, "👥 Identifying speakers...")
+                    progress_callback(0.7, desc="👥 Identifying speakers...")
+                    time.sleep(0.5)
                 print("5️⃣ Loading speaker diarization model...")
                 diarize_segments = self.diarize_model(audio)            
                     
@@ -111,7 +129,8 @@ class TranscriptionService:
                 # ======================
                 #
                 if progress_callback:
-                    progress_callback(0.9, "🔗 Assigning speakers to text...")
+                    progress_callback(0.9, desc="🔗 Assigning speakers to text...")
+                    time.sleep(0.5)
                 result = whisperx.assign_word_speakers(diarize_segments, result)
                 print("6️⃣ Assigning speakers to transcript...")
                              
@@ -121,7 +140,8 @@ class TranscriptionService:
                 
 
                 if progress_callback:
-                    progress_callback(1.0, "✅ Complete!")
+                    progress_callback(1.0, desc="✅ Complete!")
+                    time.sleep(0.5)
                     
                 # ======================
                 # STEP 6: Format results
