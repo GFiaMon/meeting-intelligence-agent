@@ -152,6 +152,48 @@ def transcribe_uploaded_video(video_path: str) -> str:
         _video_state["transcription_text"] = result["transcription"]
         _video_state["transcription_segments"] = result["raw_data"]["segments"]
         _video_state["timing_info"] = result["timing_info"]
+        
+        # ---------------------------------------------------------
+        # INTELLIGENT METADATA EXTRACTION (Immediate)
+        # ---------------------------------------------------------
+        try:
+            from src.processing.metadata_extractor import MetadataExtractor
+            extractor = MetadataExtractor()
+            
+            print("🧠 Extracting intelligent metadata (title, summary, date)...")
+            extracted_data = extractor.extract_metadata(_video_state["transcription_text"])
+            
+            # Store metadata in state for later use
+            _video_state["extracted_metadata"] = extracted_data
+            
+            # Apply speaker mapping if found
+            if extracted_data.get("speaker_mapping"):
+                print(f"👥 Applying speaker mapping: {extracted_data['speaker_mapping']}")
+                _video_state["transcription_text"] = extractor.apply_speaker_mapping(
+                    _video_state["transcription_text"], 
+                    extracted_data["speaker_mapping"]
+                )
+                # Note: We are NOT updating segments here as it's complex, 
+                # but the main text (used for RAG) is updated.
+            
+            # Prepend summary to transcript for better RAG indexing
+            title = extracted_data.get("title", "Meeting")
+            summary = extracted_data.get("summary", "")
+            meeting_date = extracted_data.get("meeting_date")
+            
+            if summary:
+                summary_header = f"# {title}\n\n"
+                if meeting_date:
+                    summary_header += f"**Date:** {meeting_date}\n\n"
+                summary_header += f"**Summary:** {summary}\n\n---\n\n"
+                
+                _video_state["transcription_text"] = summary_header + _video_state["transcription_text"]
+                print(f"📝 Added summary to transcript for indexing")
+                
+        except Exception as e:
+            print(f"⚠️ Metadata extraction failed: {e}")
+            _video_state["extracted_metadata"] = {}
+
         _video_state["transcription_in_progress"] = False
         _video_state["show_video_upload"] = False
         
@@ -159,22 +201,36 @@ def transcribe_uploaded_video(video_path: str) -> str:
         speakers_count = result.get("speakers_count", 0)
         processing_time = result.get("processing_time", 0)
         
+        # Create a preview of the UPDATED transcript
+        updated_text = _video_state["transcription_text"]
+        transcript_preview = updated_text[:1000] + "..." if len(updated_text) > 1000 else updated_text
+        
+        # Get extracted info for display
+        title = _video_state.get("extracted_metadata", {}).get("title", "Untitled Meeting")
+        summary = _video_state.get("extracted_metadata", {}).get("summary", "No summary available.")
+        
         # Return formatted transcription with summary (hide temp path)
         return f"""✅ **Transcription Complete!**
 
 **File:** {filename}
+**Title:** {title}
+**Summary:** {summary}
 **Processing Time:** {processing_time:.1f}s
 **Speakers Identified:** {speakers_count}
 
 ---
 
-{result["transcription"]}
+**Transcript Preview (first 1000 characters with Speaker Names):**
+
+{transcript_preview}
 
 ---
 
+💡 **Note:** The full transcript is available in the **'Edit Transcript' tab**. Click "Load Transcript" to view and edit the complete text.
+
 **What would you like to do next?**
 1. 💾 Upload this transcription to Pinecone for AI-powered search
-2. ✏️ Edit the transcription before uploading
+2. 📖 **View/Edit the full transcript** (go to the **"Edit Transcript" tab**, click "Load Transcript" to read the complete text, make any edits if needed, then "Save & Upload to Pinecone")
 3. ❌ Cancel and start over
 
 Just let me know!"""
@@ -261,9 +317,32 @@ def upload_transcription_to_pinecone() -> str:
         return "❌ No transcription available to upload. Please transcribe a video first."
     
     try:
+        # Import MetadataExtractor
+        from src.processing.metadata_extractor import MetadataExtractor
+        
+        # Check if we already extracted metadata in Step 1
+        if "extracted_metadata" in _video_state and _video_state["extracted_metadata"]:
+            print("🧠 Using pre-extracted metadata from transcription step.")
+            extracted_data = _video_state["extracted_metadata"]
+        else:
+            # Fallback: Extract now if not done (e.g. legacy state)
+            extractor = MetadataExtractor()
+            print("🧠 Extracting intelligent metadata (title, summary, date)...")
+            extracted_data = extractor.extract_metadata(_video_state["transcription_text"])
+            
+            # Apply speaker mapping if found
+            if extracted_data.get("speaker_mapping"):
+                print(f"👥 Applying speaker mapping: {extracted_data['speaker_mapping']}")
+                _video_state["transcription_text"] = extractor.apply_speaker_mapping(
+                    _video_state["transcription_text"], 
+                    extracted_data["speaker_mapping"]
+                )
+        
         # Generate unique meeting ID
         meeting_id = f"meeting_{uuid.uuid4().hex[:8]}"
-        meeting_date = datetime.now().strftime("%Y-%m-%d")
+        
+        # Use extracted date if available, else today
+        meeting_date = extracted_data.get("meeting_date") or datetime.now().strftime("%Y-%m-%d")
         
         # Create metadata
         video_filename = os.path.basename(_video_state["uploaded_video_path"]) if _video_state["uploaded_video_path"] else "unknown"
@@ -271,15 +350,27 @@ def upload_transcription_to_pinecone() -> str:
         meeting_metadata = {
             "meeting_id": meeting_id,
             "date": meeting_date,
+            "date_transcribed": datetime.now().strftime("%Y-%m-%d"),
             "source": "video_upload",
-            "title": f"Meeting {meeting_date}",
+            "title": extracted_data.get("title", f"Meeting {meeting_date}"),
+            "summary": extracted_data.get("summary", "No summary available."),
             "source_file": video_filename,
-            "transcription_model": "whisperx-large-v2",
-            "language": "en"  # Could be extracted from timing_info if available
+            "transcription_model": "small",
+            "language": "en"
         }
         
         # Process transcription into documents
         segments = _video_state.get("transcription_segments", [])
+        
+        # Calculate duration and format as MM:SS
+        total_duration_seconds = segments[-1]["end"] if segments else 0
+        minutes = int(total_duration_seconds // 60)
+        seconds = int(total_duration_seconds % 60)
+        formatted_duration = f"{minutes:02d}:{seconds:02d}"
+        
+        # Add duration to metadata
+        meeting_metadata["duration"] = formatted_duration
+        
         docs = process_transcript_to_documents(
             _video_state["transcription_text"],
             segments,
@@ -288,7 +379,7 @@ def upload_transcription_to_pinecone() -> str:
         )
         
         # Upload to Pinecone
-        _pinecone_manager.upsert_documents(docs, namespace="default")
+        _pinecone_manager.upsert_documents(docs)
         
         # Calculate statistics
         avg_chunk_size = sum(d.metadata['char_count'] for d in docs) // len(docs) if docs else 0
@@ -299,15 +390,13 @@ def upload_transcription_to_pinecone() -> str:
         return f"""✅ Successfully uploaded to Pinecone!
 
 **Meeting ID:** `{meeting_id}`
-**Documents Created:** {len(docs)}
-**Average Chunk Size:** {avg_chunk_size} characters
+**Title:** {meeting_metadata['title']}
 **Date:** {meeting_date}
+**Summary:** {meeting_metadata['summary']}
+**Documents Created:** {len(docs)}
+**Duration:** {formatted_duration}
 
-You can now ask me questions about this meeting! For example:
-- "What were the key decisions in {meeting_id}?"
-- "Summarize the action items from this meeting"
-- "What meetings do I have available?"
-"""
+You can now ask me questions about this meeting!"""
         
     except Exception as e:
         return f"❌ Error uploading to Pinecone: {str(e)}"
@@ -331,6 +420,96 @@ def cancel_video_workflow() -> str:
     return "✅ Video workflow cancelled. What else can I help you with?"
 
 
+@tool
+def update_speaker_names(speaker_mapping: str) -> str:
+    """
+    Update speaker names in the current transcript by replacing generic labels (SPEAKER_00, SPEAKER_01, etc.) 
+    with real names provided by the user.
+    
+    Args:
+        speaker_mapping: A string describing the mapping in format "SPEAKER_00=John Smith, SPEAKER_01=Sarah Jones"
+                        or "0=John, 1=Sarah" (the tool will handle both formats)
+    
+    Returns:
+        Confirmation message with the updated speaker list
+        
+    Example:
+        User: "SPEAKER_00 is John Smith and SPEAKER_01 is Sarah Jones"
+        Agent: calls update_speaker_names("SPEAKER_00=John Smith, SPEAKER_01=Sarah Jones")
+        
+        User: "Speaker 0 is John and speaker 1 is Sarah"
+        Agent: calls update_speaker_names("0=John, 1=Sarah")
+    """
+    if not _video_state.get("transcription_text"):
+        return "❌ No transcription available. Please transcribe a video first."
+    
+    try:
+        from src.processing.metadata_extractor import MetadataExtractor
+        
+        # Parse the speaker_mapping string into a dictionary
+        mapping = {}
+        
+        # Split by comma and process each mapping
+        pairs = [pair.strip() for pair in speaker_mapping.split(',')]
+        
+        for pair in pairs:
+            if '=' in pair:
+                key, value = pair.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+                
+                # Normalize the key to SPEAKER_XX format
+                if key.isdigit():
+                    key = f"SPEAKER_{int(key):02d}"
+                elif not key.startswith("SPEAKER_"):
+                    # Try to extract number from formats like "Speaker 0" or "speaker0"
+                    import re
+                    match = re.search(r'\d+', key)
+                    if match:
+                        key = f"SPEAKER_{int(match.group()):02d}"
+                
+                mapping[key] = value
+        
+        if not mapping:
+            return "❌ Could not parse speaker mapping. Please use format: 'SPEAKER_00=John Smith, SPEAKER_01=Sarah Jones' or '0=John, 1=Sarah'"
+        
+        # Apply the mapping
+        extractor = MetadataExtractor()
+        original_text = _video_state["transcription_text"]
+        updated_text = extractor.apply_speaker_mapping(original_text, mapping)
+        
+        # Update the state
+        _video_state["transcription_text"] = updated_text
+        
+        # Also update the extracted_metadata if it exists
+        if "extracted_metadata" in _video_state:
+            if "speaker_mapping" not in _video_state["extracted_metadata"]:
+                _video_state["extracted_metadata"]["speaker_mapping"] = {}
+            _video_state["extracted_metadata"]["speaker_mapping"].update(mapping)
+        
+        # Count replacements
+        changes = []
+        for old, new in mapping.items():
+            if old in original_text:
+                changes.append(f"{old} → {new}")
+        
+        if changes:
+            return f"""✅ **Speaker names updated successfully!**
+
+**Changes made:**
+{chr(10).join(f"- {change}" for change in changes)}
+
+The transcript has been updated. You can:
+1. View it in the **"Edit Transcript"** tab by clicking "Load Transcript"
+2. Upload it to Pinecone with the new names
+"""
+        else:
+            return f"⚠️ No speakers found matching: {', '.join(mapping.keys())}. The transcript may already have these names updated, or the speaker labels are different."
+            
+    except Exception as e:
+        return f"❌ Error updating speaker names: {str(e)}"
+
+
 # Export all tools and utilities
 __all__ = [
     "initialize_video_tools",
@@ -341,5 +520,6 @@ __all__ = [
     "request_transcription_edit",
     "update_transcription",
     "upload_transcription_to_pinecone",
-    "cancel_video_workflow"
+    "cancel_video_workflow",
+    "update_speaker_names"
 ]

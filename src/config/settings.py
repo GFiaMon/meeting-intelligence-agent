@@ -17,10 +17,18 @@ class Config:
 
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     MODEL_NAME = "gpt-3.5-turbo"
+    METADATA_MODEL = "gpt-4o-mini" # Cheaper model for metadata extraction
+
+    # Zoom API Settings
+    ZOOM_CLIENT_ID = os.getenv("ZOOM_CLIENT_ID")
+    ZOOM_CLIENT_SECRET = os.getenv("ZOOM_CLIENT_SECRET")
+    ZOOM_ACCOUNT_ID = os.getenv("ZOOM_ACCOUNT_ID")
+    ZOOM_WEBHOOK_SECRET = os.getenv("ZOOM_WEBHOOK_SECRET")
 
     # Pinecone Settings
     PINECONE_INDEX = "meeting-transcripts-1-dev"
     PINECONE_ENVIRONMENT = "us-west1-gcp"  # Change to your environment
+    PINECONE_NAMESPACE = "development" # Default namespace for environment isolation
     
     # LangSmith Settings (optional - for tracing and debugging)
     LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false")

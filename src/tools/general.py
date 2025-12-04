@@ -11,6 +11,9 @@ Reference: https://docs.langchain.com/oss/python/langchain/tools#create-tools
 from typing import List, Dict, Any, Optional
 from langchain.tools import tool
 from langchain_core.documents import Document
+from src.retrievers.pipeline import process_transcript_to_documents
+import uuid
+from datetime import datetime
 
 
 # Global reference to PineconeManager (will be set during initialization)
@@ -222,5 +225,60 @@ __all__ = [
     "initialize_tools",
     "search_meetings",
     "get_meeting_metadata",
-    "list_recent_meetings"
+    "list_recent_meetings",
+    "upsert_text_to_pinecone"
 ]
+
+
+@tool
+def upsert_text_to_pinecone(text: str, title: str, source: str = "Manual Entry", date: str = None) -> str:
+    """
+    Upsert any text content (e.g., Notion pages, manual notes) to Pinecone.
+    
+    Use this tool when the user wants to save a Notion page, meeting notes, or any other text
+    that is NOT a video transcription.
+    
+    Args:
+        text: The content to save
+        title: Title of the document/meeting
+        source: Source of the content (e.g., "Notion", "Manual Entry")
+        date: Date of the content (YYYY-MM-DD). Defaults to today.
+    
+    Returns:
+        Success message with the generated meeting_id
+    """
+    if not _pinecone_manager:
+        return "Error: Pinecone service is not initialized."
+        
+    try:
+        # Generate ID and defaults
+        meeting_id = f"doc_{uuid.uuid4().hex[:8]}"
+        if not date:
+            date = datetime.now().strftime("%Y-%m-%d")
+            
+        # Create metadata
+        meeting_metadata = {
+            "meeting_id": meeting_id,
+            "date": date,
+            "source": source,
+            "title": title,
+            "source_file": f"{source.lower()}_upload",
+            "transcription_model": "text_import",
+            "language": "en"
+        }
+        
+        # Process text into documents (using fallback chunking since no speaker data)
+        docs = process_transcript_to_documents(
+            transcript_text=text,
+            speaker_data=None,
+            meeting_id=meeting_id,
+            meeting_metadata=meeting_metadata
+        )
+        
+        # Upsert to Pinecone
+        _pinecone_manager.upsert_documents(docs, namespace="default")
+        
+        return f"✅ Successfully saved '{title}' to Pinecone (ID: {meeting_id})"
+        
+    except Exception as e:
+        return f"❌ Error saving to Pinecone: {str(e)}"

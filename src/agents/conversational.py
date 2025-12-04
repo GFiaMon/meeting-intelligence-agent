@@ -9,23 +9,34 @@ the entire meeting intelligence workflow through natural conversation, including
 - Meeting queries and analysis
 """
 
-from typing import List, Dict, Any, TypedDict, Optional, Annotated
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+# Standard library imports
+from typing import Annotated, Any, Dict, List, Optional, TypedDict
+
+# Third-party imports
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 
+# Local application imports
 from src.config.settings import Config
-from src.tools.general import search_meetings, get_meeting_metadata, list_recent_meetings, initialize_tools
+from src.tools.general import (
+    get_meeting_metadata,
+    initialize_tools,
+    list_recent_meetings,
+    search_meetings,
+    upsert_text_to_pinecone,
+)
 from src.tools.video import (
+    cancel_video_workflow,
+    initialize_video_tools,
+    request_transcription_edit,
     request_video_upload,
     transcribe_uploaded_video,
-    request_transcription_edit,
+    update_speaker_names,
     update_transcription,
     upload_transcription_to_pinecone,
-    cancel_video_workflow,
-    initialize_video_tools
 )
 
 
@@ -54,6 +65,11 @@ class ConversationalMeetingAgent:
 - NEVER use "meeting 1" or "meeting 2" as a `meeting_id` in tool calls. Always map it to the real ID first.
 - If you are unsure which meeting the user means, ask for clarification or list the available meetings.
 
+**IMPORTANT: Handling Data Changes (Deletions/Updates)**
+- If the user mentions that a meeting was deleted, updated, or that your information is outdated, do NOT rely on your conversation history.
+- You MUST call `list_recent_meetings` or `search_meetings` again to get the fresh state from the database.
+- Do not argue with the user about what exists; always verify with the tools.
+
 **Your Capabilities:**
 
 You can help users with two main workflows:
@@ -78,6 +94,7 @@ You can help users with two main workflows:
 - `request_transcription_edit`: Allow manual transcription editing
 - `update_transcription`: Save edited transcription
 - `upload_transcription_to_pinecone`: Store transcription in database
+- `update_speaker_names`: Update speaker names in transcript (e.g., replace SPEAKER_00 with "John Smith")
 - `cancel_video_workflow`: Cancel current video workflow
 
 **Meeting Queries:**
@@ -114,6 +131,19 @@ When the user asks to create/upload content to Notion:
 User: "Create a test page in Notion"
 You: Call `API-post-page(parent={"page_id": "2bc5a424-5cbb-80ec-8aa9-c4fd989e67bc"}, properties={"title": [{"text": {"content": "Test Page"}}]}, children=["This is a test"])`
 
+**Generic Document/Text Upsert:**
+
+**IMPORTANT: Saving Content from Notion or Manual Entry**
+
+When the user wants to save content from Notion, manual notes, or any text that is NOT a video transcription, you MUST use the `upsert_text_to_pinecone` tool.
+
+1. **Get the content**: If it's a Notion page, first read it using `API-get-block-children` or `API-retrieve-page`. If it's manual text, use the text provided by the user.
+2. **Upsert**: Call `upsert_text_to_pinecone(text="...", title="...", source="Notion/Manual")`.
+
+**Example:**
+User: "Save this Notion page to Pinecone"
+You: [After reading page content] Call `upsert_text_to_pinecone(text="Page content...", title="Page Title", source="Notion")`
+
 
 **Conversational Guidelines:**
 
@@ -127,8 +157,11 @@ You: Call `API-post-page(parent={"page_id": "2bc5a424-5cbb-80ec-8aa9-c4fd989e67b
    - When user wants to upload: call `request_video_upload`
    - After upload: call `transcribe_uploaded_video` with the video path
    - Show transcription and ask: "Would you like to upload this to Pinecone or edit it first?"
-   - If edit: call `request_transcription_edit`
-   - After editing or if ready: call `upload_transcription_to_pinecone`
+   - If user wants to edit: Guide them to the **"✏️ Edit Transcript" tab** where they can:
+     1. Click "Load Transcript" to load the transcription
+     2. Make their edits
+     3. Click "Save & Upload to Pinecone"
+   - If ready to upload directly: call `upload_transcription_to_pinecone`
    - Confirm success and offer to help with queries
 
 4. **Meeting Query Flow**:
@@ -180,7 +213,7 @@ Great! I've opened the video upload interface. Please select your meeting video 
 
 User: [uploads video]
 Agent: [calls transcribe_uploaded_video]
-✅ Transcription complete! [shows transcription]
+✅ Transcription complete! [shows full transcript or summary with link to Edit tab]
 
 Would you like me to:
 1. Upload this to Pinecone for AI-powered search
@@ -222,10 +255,12 @@ Remember: You're a helpful assistant focused on making meeting management effort
             update_transcription,
             upload_transcription_to_pinecone,
             cancel_video_workflow,
+            update_speaker_names,
             # Meeting query tools
             search_meetings,
             get_meeting_metadata,
-            list_recent_meetings
+            list_recent_meetings,
+            upsert_text_to_pinecone
         ]
         
         # Load MCP tools (Notion integration)
@@ -393,7 +428,7 @@ Remember: You're a helpful assistant focused on making meeting management effort
             history: Conversation history in Gradio format [[user, bot], ...]
         
         Yields:
-            Streaming response strings
+            Response chunks (strings)
         """
         # Initialize state
         initial_state: ConversationalAgentState = {
@@ -433,6 +468,8 @@ Remember: You're a helpful assistant focused on making meeting management effort
                         elif isinstance(last_msg, AIMessage) and last_msg.content:
                             final_response = last_msg.content
                             yield final_response
+                            # Do not return here to allow the stream to finish naturally
+                            # return
                 
                 # Handle tool execution events (to catch errors)
                 if "tools" in event:
@@ -441,11 +478,11 @@ Remember: You're a helpful assistant focused on making meeting management effort
                     if "llm_messages" in tools_update:
                         for msg in tools_update["llm_messages"]:
                             if hasattr(msg, "status") and msg.status == "error":
-                                yield f"⚠️  Tool error: {msg.content}\n"
+                                yield (f"⚠️  Tool error: {msg.content}\n", None)
                 
                 # Handle error events
                 if "error" in event:
-                    yield f"❌ Error: {event['error']}"
+                    yield (f"❌ Error: {event['error']}", None)
                     return
 
             # If we didn't get a final response in the stream
