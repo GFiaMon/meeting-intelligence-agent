@@ -3,6 +3,7 @@ import random
 import gradio as gr
 from typing import Dict, Any
 from src.tools.video import get_video_state
+from src.config.settings import Config
 
 def create_demo(agent):
     """
@@ -218,18 +219,19 @@ You can ask me to:
             # Use extracted date if available, else today
             meeting_date = extracted_data.get("meeting_date") or datetime.now().strftime("%Y-%m-%d")
             
-            # Create metadata
+            # Create comprehensive metadata with consistent field names
             video_filename = os.path.basename(video_state["uploaded_video_path"]) if video_state.get("uploaded_video_path") else "edited_transcript"
             
             meeting_metadata = {
                 "meeting_id": meeting_id,
-                "date": meeting_date,
+                "meeting_date": meeting_date,  # ✅ Fixed: was "date"
                 "date_transcribed": datetime.now().strftime("%Y-%m-%d"),
                 "source": "video_upload_edited",
-                "title": extracted_data.get("title", f"Meeting {meeting_date}"),
-                "summary": extracted_data.get("summary", "No summary available."),
+                "meeting_title": extracted_data.get("title", f"Meeting {meeting_date}"),  # ✅ Fixed: was "title"
+                "summary": extracted_data.get("summary", "No summary available."),  # ✅ Added to metadata
+                "speaker_mapping": extracted_data.get("speaker_mapping", {}),  # ✅ Added speaker mapping
                 "source_file": video_filename,
-                "transcription_model": "small",
+                "transcription_model": Config.WHISPER_MODEL,
                 "language": "en"
             }
             

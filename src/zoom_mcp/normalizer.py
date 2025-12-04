@@ -45,12 +45,35 @@ class TranscriptNormalizer:
             
             formatted_content = f"[{time_str}] {speaker}: {text}"
             
-            # Create metadata
+            # Create comprehensive metadata following the standard schema
             metadata = {
-                "source": "zoom_rtms",
+                # Meeting Identification
                 "meeting_id": meeting_id,
-                "speaker": speaker,
+                "meeting_date": datetime.now().strftime("%Y-%m-%d"),
+                "meeting_title": f"Zoom Live Meeting {meeting_id}",
+                "summary": "Live Zoom transcription",
+                
+                # Temporal Information
                 "timestamp": timestamp_ms,
+                "date_transcribed": datetime.now().strftime("%Y-%m-%d"),
+                "meeting_duration": "N/A",  # Not available for live streams
+                
+                # Speaker Information
+                "speaker": speaker,
+                "speaker_mapping": "{}",  # Empty JSON string (Pinecone requires string, not dict)
+                
+                # Content Metadata
+                "chunk_type": "zoom_rtms_chunk",
+                "word_count": len(text.split()),
+                "char_count": len(text),
+                
+                # Source Information
+                "source": "zoom_rtms",
+                "source_file": f"zoom_live_{meeting_id}",
+                "transcription_model": "zoom_rtms",
+                "language": "en",
+                
+                # Legacy fields for backward compatibility
                 "type": "transcript_chunk"
             }
             
@@ -70,11 +93,35 @@ class TranscriptNormalizer:
         
         formatted_content = f"[{time_str}] {speaker}: {text}"
         
+        # Create comprehensive metadata following the standard schema
         metadata = {
-            "source": "manual_note",
+            # Meeting Identification
             "meeting_id": meeting_id,
-            "speaker": speaker,
+            "meeting_date": datetime.now().strftime("%Y-%m-%d"),
+            "meeting_title": f"Manual Notes {meeting_id}",
+            "summary": "Manual meeting notes",
+            
+            # Temporal Information
             "timestamp": timestamp.timestamp() * 1000,
+            "date_transcribed": datetime.now().strftime("%Y-%m-%d"),
+            "meeting_duration": "N/A",
+            
+            # Speaker Information
+            "speaker": speaker,
+            "speaker_mapping": "{}",  # Empty JSON string (Pinecone requires string, not dict)
+            
+            # Content Metadata
+            "chunk_type": "manual_note",
+            "word_count": len(text.split()),
+            "char_count": len(text),
+            
+            # Source Information
+            "source": "manual_note",
+            "source_file": f"manual_note_{meeting_id}",
+            "transcription_model": "manual_entry",
+            "language": "en",
+            
+            # Legacy fields for backward compatibility
             "type": "manual_note"
         }
         

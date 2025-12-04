@@ -14,6 +14,7 @@ from langchain.tools import tool
 from src.processing.transcription import TranscriptionService
 from src.retrievers.pinecone import PineconeManager
 from src.retrievers.pipeline import process_transcript_to_documents
+from src.config.settings import Config
 
 
 # Global references (will be set during initialization)
@@ -243,7 +244,7 @@ Just let me know!"""
         return f"❌ Error during transcription: {str(e)}"
 
 
-@tool
+@tool               # <-- This tool is maybe not needed!! It is done in the UI (second tab)
 def request_transcription_edit() -> str:
     """
     Allow the user to manually edit the transcription text.
@@ -344,18 +345,19 @@ def upload_transcription_to_pinecone() -> str:
         # Use extracted date if available, else today
         meeting_date = extracted_data.get("meeting_date") or datetime.now().strftime("%Y-%m-%d")
         
-        # Create metadata
+        # Create comprehensive metadata with consistent field names
         video_filename = os.path.basename(_video_state["uploaded_video_path"]) if _video_state["uploaded_video_path"] else "unknown"
         
         meeting_metadata = {
             "meeting_id": meeting_id,
-            "date": meeting_date,
+            "meeting_date": meeting_date,  # ✅ Fixed: was "date"
             "date_transcribed": datetime.now().strftime("%Y-%m-%d"),
             "source": "video_upload",
-            "title": extracted_data.get("title", f"Meeting {meeting_date}"),
-            "summary": extracted_data.get("summary", "No summary available."),
+            "meeting_title": extracted_data.get("title", f"Meeting {meeting_date}"),  # ✅ Fixed: was "title"
+            "summary": extracted_data.get("summary", "No summary available."),  # ✅ Added to metadata
+            "speaker_mapping": extracted_data.get("speaker_mapping", {}),  # ✅ Added speaker mapping
             "source_file": video_filename,
-            "transcription_model": "small",
+            "transcription_model": Config.WHISPER_MODEL,
             "language": "en"
         }
         

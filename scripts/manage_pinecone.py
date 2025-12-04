@@ -29,7 +29,7 @@ def list_meetings():
     print("\n📋 Listing all meetings in Pinecone...\n")
     
     pm = PineconeManager()
-    meetings = pm.list_meetings(namespace="default", limit=1000)
+    meetings = pm.list_meetings(namespace=Config.PINECONE_NAMESPACE, limit=1000)
     
     if not meetings:
         print("❌ No meetings found in Pinecone.")
@@ -59,7 +59,7 @@ def delete_meeting(meeting_id: str):
         return
     
     pm = PineconeManager()
-    deleted_count = pm.delete_by_meeting_id(meeting_id, namespace="default")
+    deleted_count = pm.delete_by_meeting_id(meeting_id, namespace=Config.PINECONE_NAMESPACE)
     
     if deleted_count > 0:
         print(f"\n✅ Successfully deleted {deleted_count} vectors for meeting '{meeting_id}'")
@@ -92,8 +92,8 @@ def clear_namespace():
         return
     
     pm = PineconeManager()
-    pm.delete_namespace("default")
-    print("\n✅ All data cleared from 'default' namespace.")
+    pm.delete_namespace(Config.PINECONE_NAMESPACE)
+    print(f"\n✅ All data cleared from '{Config.PINECONE_NAMESPACE}' namespace.")
 
 
 def main():

@@ -28,7 +28,7 @@ class Config:
     # Pinecone Settings
     PINECONE_INDEX = "meeting-transcripts-1-dev"
     PINECONE_ENVIRONMENT = "us-west1-gcp"  # Change to your environment
-    PINECONE_NAMESPACE = "development" # Default namespace for environment isolation
+    PINECONE_NAMESPACE = "development" # Default namespace for environment isolation options: "default", "development", "production"
     
     # LangSmith Settings (optional - for tracing and debugging)
     LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false")
@@ -51,20 +51,30 @@ class Config:
     @staticmethod
     def get_mcp_servers():
         """Get MCP server configurations."""
-        if not Config.ENABLE_MCP or not Config.NOTION_TOKEN:
+        if not Config.ENABLE_MCP:
             return {}
 
+        servers = {}
         
-        return {
-            "notion": {
+        # 1. Notion MCP Server (if token is present)
+        if Config.NOTION_TOKEN:
+            servers["notion"] = {
                 "command": "npx",
                 "args": ["-y", "@notionhq/notion-mcp-server"],
                 "transport": "stdio",
                 "env": {
-                    "NOTION_TOKEN": Config.NOTION_TOKEN  # Correct env var is NOTION_TOKEN
+                    "NOTION_TOKEN": Config.NOTION_TOKEN
                 }
             }
+            
+        # 2. Berlin Time MCP Server (SSE Mode)
+        # Requires the server to be running separately: python external_mcp_servers/app_time_mcp_server.py
+        servers["berlin_time"] = {
+            "url": "https://gfiamon-date-time-mpc-server-tool.hf.space/gradio_api/mcp/",
+            "transport": "sse"
         }
+        
+        return servers
 
 
 # Enable LangSmith tracing if configured

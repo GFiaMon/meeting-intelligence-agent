@@ -1,3 +1,4 @@
+import json
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 from datetime import datetime
@@ -121,12 +122,17 @@ def process_transcript_to_documents(
     total_chunks = len(chunks_with_overlap)
     
     for idx, chunk in enumerate(chunks_with_overlap):
-        # Build comprehensive metadata
+        # Build comprehensive metadata with all available fields
+        # Note: Pinecone only accepts string/number/boolean/list metadata, so we convert dicts to JSON strings
+        speaker_mapping = meeting_metadata.get("speaker_mapping", {})
+        speaker_mapping_json = json.dumps(speaker_mapping) if speaker_mapping else "{}"  # Convert dict to JSON string
+        
         metadata = {
             # Meeting Identification
             "meeting_id": meeting_id,
             "meeting_date": meeting_metadata.get("meeting_date", datetime.now().strftime("%Y-%m-%d")),
             "meeting_title": meeting_metadata.get("meeting_title", ""),
+            "summary": meeting_metadata.get("summary", ""),  # ✅ Added summary
             
             # Temporal Information
             "start_time": chunk["start_time"],
@@ -134,11 +140,13 @@ def process_transcript_to_documents(
             "duration": chunk["end_time"] - chunk["start_time"],
             "start_time_formatted": _format_timestamp(chunk["start_time"]),
             "end_time_formatted": _format_timestamp(chunk["end_time"]),
+            "meeting_duration": meeting_metadata.get("duration", "N/A"),  # ✅ Added total meeting duration
             
             # Speaker Information
             "speaker": chunk["speaker"],
             "speakers": chunk["speakers"],
             "speaker_count": len(chunk["speakers"]),
+            "speaker_mapping": speaker_mapping_json,  # ✅ Converted to JSON string for Pinecone compatibility
             
             # Content Metadata
             "chunk_type": "conversation_turn" if len(chunk["speakers"]) == 1 else "mixed_speakers",
@@ -149,9 +157,11 @@ def process_transcript_to_documents(
             "segment_count": chunk["segment_count"],
             
             # Source Information
+            "source": meeting_metadata.get("source", "unknown"),  # ✅ Added source type
             "source_file": meeting_metadata.get("source_file", ""),
             "transcription_model": meeting_metadata.get("transcription_model", "whisperx"),
             "language": meeting_metadata.get("language", "en"),
+            "date_transcribed": meeting_metadata.get("date_transcribed", datetime.now().strftime("%Y-%m-%d")),  # ✅ Added transcription date
         }
         
         doc = Document(page_content=chunk["text"], metadata=metadata)
@@ -217,15 +227,24 @@ def _fallback_chunking(transcript_text, meeting_id, meeting_metadata, min_chunk_
         chunk_overlap=chunk_overlap
     )
     
-    # Create base metadata
+    # Create comprehensive base metadata with consistent field names
+    # Note: Pinecone only accepts string/number/boolean/list metadata, so we convert dicts to JSON strings
+    speaker_mapping = meeting_metadata.get("speaker_mapping", {})
+    speaker_mapping_json = json.dumps(speaker_mapping) if speaker_mapping else "{}"  # Convert dict to JSON string
+    
     base_metadata = {
         "meeting_id": meeting_id,
         "meeting_date": meeting_metadata.get("meeting_date", datetime.now().strftime("%Y-%m-%d")),
         "meeting_title": meeting_metadata.get("meeting_title", ""),
+        "summary": meeting_metadata.get("summary", ""),  # ✅ Added summary
         "chunk_type": "full_transcript_chunk",
+        "source": meeting_metadata.get("source", "unknown"),  # ✅ Added source
         "source_file": meeting_metadata.get("source_file", ""),
         "transcription_model": meeting_metadata.get("transcription_model", "whisperx"),
         "language": meeting_metadata.get("language", "en"),
+        "date_transcribed": meeting_metadata.get("date_transcribed", datetime.now().strftime("%Y-%m-%d")),  # ✅ Added transcription date
+        "speaker_mapping": speaker_mapping_json,  # ✅ Converted to JSON string for Pinecone compatibility
+        "meeting_duration": meeting_metadata.get("duration", "N/A"),  # ✅ Added duration
     }
     
     # Split text into chunks

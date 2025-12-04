@@ -9,12 +9,13 @@ Reference: https://docs.langchain.com/oss/python/langchain/tools#create-tools
 """
 
 from typing import List, Dict, Any, Optional
+from datetime import datetime
+import uuid
 from langchain.tools import tool
 from langchain_core.documents import Document
-from src.retrievers.pipeline import process_transcript_to_documents
-import uuid
-from datetime import datetime
 
+from src.retrievers.pipeline import process_transcript_to_documents
+from src.config.settings import Config
 
 # Global reference to PineconeManager (will be set during initialization)
 _pinecone_manager = None
@@ -64,7 +65,7 @@ def search_meetings(query: str, max_results: int = 5, meeting_id: Optional[str] 
         
         # Get retriever and perform search
         retriever = _pinecone_manager.get_retriever(
-            namespace="default",
+            namespace=Config.PINECONE_NAMESPACE,
             search_kwargs=search_kwargs
         )
         
@@ -79,12 +80,12 @@ def search_meetings(query: str, max_results: int = 5, meeting_id: Optional[str] 
         for i, doc in enumerate(docs, 1):
             metadata = doc.metadata
             meeting_id = metadata.get("meeting_id", "unknown")
-            date = metadata.get("date", "unknown")
+            meeting_date = metadata.get("meeting_date", "unknown")  # ✅ Fixed: was "date"
             chunk_index = metadata.get("chunk_index", "?")
             
             result_parts.append(
                 f"\n--- Segment {i} ---\n"
-                f"Meeting: {meeting_id} (Date: {date})\n"
+                f"Meeting: {meeting_id} (Date: {meeting_date})\n"
                 f"Chunk: {chunk_index}\n"
                 f"Content:\n{doc.page_content}\n"
             )
@@ -118,7 +119,7 @@ def get_meeting_metadata(meeting_id: str) -> str:
     try:
         # Search for any document from this meeting to get metadata
         retriever = _pinecone_manager.get_retriever(
-            namespace="default",
+            namespace=Config.PINECONE_NAMESPACE,
             search_kwargs={
                 "k": 1,
                 "filter": {"meeting_id": {"$eq": meeting_id}}
@@ -136,12 +137,14 @@ def get_meeting_metadata(meeting_id: str) -> str:
         
         result_parts = [
             f"Meeting Information for {meeting_id}:\n",
-            f"- Date: {metadata.get('date', 'N/A')}",
-            f"- Title: {metadata.get('title', 'N/A')}",
+            f"- Date: {metadata.get('meeting_date', 'N/A')}",  # ✅ Fixed: was 'date'
+            f"- Title: {metadata.get('meeting_title', 'N/A')}",  # ✅ Fixed: was 'title'
+            f"- Summary: {metadata.get('summary', 'N/A')}",  # ✅ Added summary
             f"- Source: {metadata.get('source', 'N/A')}",
             f"- Source File: {metadata.get('source_file', 'N/A')}",
             f"- Language: {metadata.get('language', 'N/A')}",
             f"- Transcription Model: {metadata.get('transcription_model', 'N/A')}",
+            f"- Duration: {metadata.get('meeting_duration', 'N/A')}",  # ✅ Added duration
         ]
         
         return "\n".join(result_parts)
@@ -173,7 +176,7 @@ def list_recent_meetings(limit: int = 10) -> str:
     try:
         # Get retriever with high k to fetch many documents
         retriever = _pinecone_manager.get_retriever(
-            namespace="default",
+            namespace=Config.PINECONE_NAMESPACE,
             search_kwargs={"k": 100}  # Fetch many to find unique meetings
         )
         
@@ -191,8 +194,8 @@ def list_recent_meetings(limit: int = 10) -> str:
             
             if meeting_id and meeting_id not in meetings_dict:
                 meetings_dict[meeting_id] = {
-                    "date": metadata.get("date", "N/A"),
-                    "title": metadata.get("title", "N/A"),
+                    "date": metadata.get("meeting_date", "N/A"),  # ✅ Fixed: was "date"
+                    "title": metadata.get("meeting_title", "N/A"),  # ✅ Fixed: was "title"
                     "source_file": metadata.get("source_file", "N/A")
                 }
             
@@ -256,12 +259,14 @@ def upsert_text_to_pinecone(text: str, title: str, source: str = "Manual Entry",
         if not date:
             date = datetime.now().strftime("%Y-%m-%d")
             
-        # Create metadata
+        # Create comprehensive metadata with consistent field names
         meeting_metadata = {
             "meeting_id": meeting_id,
-            "date": date,
+            "meeting_date": date,  # ✅ Fixed: was "date"
+            "date_transcribed": datetime.now().strftime("%Y-%m-%d"),
             "source": source,
-            "title": title,
+            "meeting_title": title,  # ✅ Fixed: was "title"
+            "summary": f"Imported from {source}",  # ✅ Added summary
             "source_file": f"{source.lower()}_upload",
             "transcription_model": "text_import",
             "language": "en"
@@ -276,7 +281,7 @@ def upsert_text_to_pinecone(text: str, title: str, source: str = "Manual Entry",
         )
         
         # Upsert to Pinecone
-        _pinecone_manager.upsert_documents(docs, namespace="default")
+        _pinecone_manager.upsert_documents(docs, namespace=Config.PINECONE_NAMESPACE)
         
         return f"✅ Successfully saved '{title}' to Pinecone (ID: {meeting_id})"
         

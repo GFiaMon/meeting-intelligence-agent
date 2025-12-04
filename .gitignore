@@ -36,4 +36,8 @@ Thumbs.db
 *.swo
 
 # Draft files
+archive/
 scratchpad/
+
+# Test files
+test/
