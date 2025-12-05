@@ -13,6 +13,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.pytest_cache/
 
 # Environment variables
 .env
@@ -34,6 +35,9 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Gradio
+.gradio/
 
 # Draft files
 archive/
