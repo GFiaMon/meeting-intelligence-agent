@@ -46,6 +46,8 @@ scripts/
 
 # Documentation & Assets (Not needed for runtime)
 docs/
+img/
+
 *.md
 *.png
 *.jpg

@@ -1,9 +1,16 @@
 import os
 import random
-import gradio as gr
+import uuid
+from datetime import datetime
 from typing import Dict, Any
-from src.tools.video import get_video_state
+
+import gradio as gr
+
 from src.config.settings import Config
+from src.processing.metadata_extractor import MetadataExtractor
+from src.retrievers.pinecone import PineconeManager
+from src.retrievers.pipeline import process_transcript_to_documents
+from src.tools.video import get_video_state, reset_video_state, _video_state
 
 def create_demo(agent):
     """
@@ -177,13 +184,6 @@ You can ask me to:
             return "❌ Cannot upload empty transcription.", edited_text
         
         try:
-            # Import required modules
-            import uuid
-            from datetime import datetime
-            from src.tools.video import _video_state, get_video_state
-            from src.retrievers.pipeline import process_transcript_to_documents
-            from src.retrievers.pinecone import PineconeManager
-            
             # Update the video state with edited text
             _video_state["transcription_text"] = edited_text
             
@@ -197,7 +197,6 @@ You can ask me to:
             # INTELLIGENT METADATA EXTRACTION
             # ---------------------------------------------------------
             try:
-                from src.processing.metadata_extractor import MetadataExtractor
                 extractor = MetadataExtractor()
                 
                 print("🧠 Extracting intelligent metadata (title, summary, date)...")
@@ -267,7 +266,6 @@ You can ask me to:
             avg_chunk_size = sum(d.metadata['char_count'] for d in docs) // len(docs) if docs else 0
             
             # Reset state after successful upload
-            from src.tools.video import reset_video_state
             reset_video_state()
             
             # Set notification for Chat tab
@@ -304,8 +302,6 @@ The agent will acknowledge your upload and help you analyze the meeting.
     def list_all_meetings():
         """List all meetings stored in Pinecone with metadata."""
         try:
-            from src.retrievers.pinecone import PineconeManager
-            
             pinecone_mgr = PineconeManager()
             meetings = pinecone_mgr.list_meetings(limit=1000)
             
@@ -337,28 +333,11 @@ The agent will acknowledge your upload and help you analyze the meeting.
             return f"❌ Error: {str(e)}", ""
     
     def delete_meeting_by_id(meeting_id: str):
-        """Delete a specific meeting from Pinecone."""
+        """Mock delete function that directs users to the admin."""
         if not meeting_id or not meeting_id.strip():
             return "❌ Please enter a valid Meeting ID."
         
-        meeting_id = meeting_id.strip()
-        
-        try:
-            from src.retrievers.pinecone import PineconeManager
-            
-            pinecone_mgr = PineconeManager()
-            deleted_count = pinecone_mgr.delete_by_meeting_id(meeting_id)
-            
-            if deleted_count > 0:
-                return f"✅ Successfully deleted **{deleted_count}** vectors for meeting `{meeting_id}`"
-            else:
-                return f"⚠️ No vectors found for meeting `{meeting_id}`. Please check the Meeting ID."
-                
-        except Exception as e:
-            import traceback
-            error_details = traceback.format_exc()
-            print(f"Error deleting meeting: {error_details}")
-            return f"❌ Error: {str(e)}"
+        return "⚠️ Please contact the admin to help you with that: [Guillermo](https://github.com/GFiaMon/meeting-intelligence-agent)"
 
 
     # ============================================================
@@ -581,8 +560,22 @@ The agent will acknowledge your upload and help you analyze the meeting.
         """)
         
         gr.Markdown("""
-
-         **🔧 Powered by:** WhisperX • OpenAI • Pinecone • LangGraph
+        <div style="text-align: center; margin-top: 2rem; padding-bottom: 2rem; border-top: 1px solid #E5E7EB; padding-top: 2rem;">
+            <p style="font-size: 1.1em; margin-bottom: 1rem;">
+                Made with ❤️ by <a href="https://github.com/GFiaMon" target="_blank" style="color: #2563EB; text-decoration: none; font-weight: bold;">Guillermo</a>
+            </p>
+            <div style="display: flex; justify-content: center; gap: 2rem; margin-bottom: 1rem;">
+                <a href="https://github.com/GFiaMon/meeting-intelligence-agent" target="_blank" style="text-decoration: none; color: #374151; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background-color: #F3F4F6; border-radius: 0.5rem; transition: background-color 0.2s;">
+                    <span style="font-size: 1.2rem;">📦</span> GitHub Repo
+                </a>
+                <a href="https://www.linkedin.com/" target="_blank" style="text-decoration: none; color: #0077b5; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background-color: #EFF6FF; border-radius: 0.5rem; transition: background-color 0.2s;">
+                    <span style="font-size: 1.2rem;">�</span> LinkedIn
+                </a>
+            </div>
+            <p style="font-size: 0.85em; color: #6B7280;">
+                Powered by <strong>WhisperX</strong> • <strong>OpenAI</strong> • <strong>Pinecone</strong> • <strong>LangGraph</strong>
+            </p>
+        </div>
         """)
 
     return demo

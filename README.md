@@ -31,6 +31,8 @@ This project implements an intelligent conversational agent that orchestrates th
 
 ## 🏗️ System Architecture
 
+![System Architecture](img/architecture_diagram.png)
+
 ```mermaid
 graph TD
     %% Define Styles
@@ -129,6 +131,11 @@ Build and run the application in a container.
    ```bash
    docker build -t meeting-agent .
    ```
+
+    > **⚠️ IMPORTANT FOR HUGGING FACE SPACES:**  
+    > Standard Gradio deployment may fail due to specific dependency conflicts (WhisperX/Pyannote).  
+    > **You must use Docker** for deployment.  
+    > Use `requirements_hf.txt` (rename it to `requirements.txt` inside your deployment repo) which contains safe, Linux-compatible version ranges. The standard `requirements.txt` is optimized for local Mac/Dev environments.
 
 2. **Run the container:**
    ```bash
