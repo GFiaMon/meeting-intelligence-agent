@@ -421,10 +421,28 @@ The agent will acknowledge your upload and help you analyze the meeting.
                     label="📝 Try these examples (click to populate):"
                 )
                 
-                gr.Markdown("""
-                **💡 Tip:** After transcription completes, you can **view the full transcript** and make edits in the **"✏️ Edit Transcript"** tab before uploading to Pinecone!
+                # gr.Markdown("""
+                # **💡 Tip:** After transcription completes, you can **view the full transcript** and make edits in the **"✏️ Edit Transcript"** tab before uploading to Pinecone!
                 
+                # **🗑️ Memory Tip:** If you delete a meeting or want to start fresh, click the **Trash Icon** (Clear) above the chat to flush the agent's memory.
+                # """)
+                # Footer (outside tabs, always visible)
+                gr.Markdown("""
+                ---
+                """)
+                with gr.Accordion("💡 Tips", open=False):
+                    gr.Markdown("""
+                ---
+                
+                - Click the 📎 button or drag & drop to upload video files
+                - Supported formats: MP4, AVI, MOV
+                - Transcription includes automatic speaker identification
+
+                - After transcription completes, you can **view the full transcript** and make edits in the **"✏️ Edit Transcript"** tab before uploading to Pinecone!
+
                 **🗑️ Memory Tip:** If you delete a meeting or want to start fresh, click the **Trash Icon** (Clear) above the chat to flush the agent's memory.
+
+                - Ask specific questions to get better search results
                 """)
             
             # ========================================
@@ -474,9 +492,18 @@ The agent will acknowledge your upload and help you analyze the meeting.
                     outputs=[upload_result, transcript_editor]
                 )
                 
+                # Footer (inside tabs)
                 gr.Markdown("""
                 ---
+                """)
+                with gr.Accordion("💡 Tips", open=False):
+                    gr.Markdown("""
+                
                 **Note:** The transcription will be automatically cleared after successful upload.
+                
+                - After transcription completes, you can **view the full transcript** and make edits in the **"✏️ Edit Transcript"** tab before uploading to Pinecone!
+                
+                - After editing the transcript, you can continue to chat with the agent or go to the **"📊 Manage Meetings"** tab to upload the edited transcript to Pinecone.
                 """)
             
             # ========================================
@@ -536,28 +563,19 @@ The agent will acknowledge your upload and help you analyze the meeting.
                 gr.Markdown("""
                 ---
                 **⚠️ Warning:** Deletion is permanent and cannot be undone!
-                
-                **💡 Tips:**
+        
+                """)
+
+                # Footer (inside tabs)
+                # gr.Markdown("""
+                # ---
+                # """)
+                with gr.Accordion("💡 Tips", open=False):
+                    gr.Markdown("""
                 - Use this to clean up test transcriptions
                 - Meeting IDs are automatically generated when you upload videos
                 - You can filter meetings by asking the chatbot: "What meetings do I have from last week?"
                 """)
-
-        
-        # Footer (outside tabs, always visible)
-        gr.Markdown("""
-        ---
-        """)
-        with gr.Accordion("💡 Tips", open=False):
-            gr.Markdown("""
-        ---
-        
-        - Click the 📎 button or drag & drop to upload video files
-        - Supported formats: MP4, AVI, MOV
-        - Transcription includes automatic speaker identification
-        - Use the "Edit Transcript" tab to make corrections before uploading
-        - Ask specific questions to get better search results
-        """)
         
         gr.Markdown("""
         <div style="text-align: center; margin-top: 2rem; padding-bottom: 2rem; border-top: 1px solid #E5E7EB; padding-top: 2rem;">
