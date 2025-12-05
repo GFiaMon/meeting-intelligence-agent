@@ -17,27 +17,18 @@ class MCPClientManager:
         
         Args:
             server_configs: Dictionary of server configurations
-                Example:
-                {
-                    "notion": {
-                        "command": "npx",
-                        "args": ["-y", "@notionhq/notion-mcp-server"],
-                        "transport": "stdio",
-                        "env": {"NOTION_TOKEN": "your-key"}
-                    }
-                }
         """
         self.server_configs = server_configs
-        self.client = None
+        self.clients = []  # List of active clients
         self.tools = []
         self._initialized = False
     
     async def initialize(self):
         """
-        Initialize MCP client and load tools.
+        Initialize MCP clients and load tools sequentially.
         
         Returns:
-            bool: True if successful, False otherwise
+            bool: True if at least one server initialized successfully
         """
         if self._initialized:
             print("⚠️  MCP already initialized")
@@ -47,24 +38,43 @@ class MCPClientManager:
             print("⚠️  No MCP servers configured")
             return False
         
-        try:
-            print(f"🔌 Initializing MCP with {len(self.server_configs)} server(s)...")
-            
-            # Create client
-            self.client = MultiServerMCPClient(self.server_configs)
-            
-            # Get tools (no need to call connect() - it's automatic!)
-            self.tools = await self.client.get_tools()
-            
-            self._initialized = True
-            
-            print(f"✅ MCP initialized! Loaded {len(self.tools)} tools")
+        print(f"🔌 Initializing {len(self.server_configs)} MCP server(s) sequentially...")
+        
+        success_count = 0
+        
+        # Iterate through each server config and initialize separately
+        for server_name, config in self.server_configs.items():
+            try:
+                print(f"   • Connecting to '{server_name}'...")
+                
+                # Create a client for just this server
+                # We wrap it in a single-entry dict because MultiServerMCPClient expects a dict
+                single_server_config = {server_name: config}
+                client = MultiServerMCPClient(single_server_config)
+                
+                # Connect and get tools
+                # This will only block for this specific server
+                server_tools = await client.get_tools()
+                
+                # Store successful client and tools
+                self.clients.append(client)
+                self.tools.extend(server_tools)
+                
+                print(f"   ✅ '{server_name}' connected! Loaded {len(server_tools)} tools")
+                success_count += 1
+                
+            except Exception as e:
+                print(f"   ❌ Failed to connect to '{server_name}': {e}")
+                # We continue to the next server instead of failing everything
+                continue
+        
+        self._initialized = True
+        
+        if success_count > 0:
+            print(f"✅ MCP initialization complete. Total tools loaded: {len(self.tools)}")
             return True
-            
-        except Exception as e:
-            print(f"❌ MCP initialization failed: {e}")
-            import traceback
-            traceback.print_exc()
+        else:
+            print("❌ MCP initialization failed: No servers connected successfully")
             return False
     
     def get_langchain_tools(self):
@@ -78,3 +88,8 @@ class MCPClientManager:
         """Close MCP connections."""
         self._initialized = False
         self.tools = []
+        
+        # Close all clients
+        # Note: MultiServerMCPClient might not have an explicit close method exposed easily,
+        # but we clear references. The underlying connections should be cleaned up by GC or context managers.
+        self.clients = []

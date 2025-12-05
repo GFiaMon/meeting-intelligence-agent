@@ -67,10 +67,10 @@ class Config:
                 }
             }
             
-        # 2. Berlin Time MCP Server (SSE Mode)
-        # Requires the server to be running separately: python external_mcp_servers/app_time_mcp_server.py
-        servers["berlin_time"] = {
-            "url": "https://gfiamon-date-time-mpc-server-tool.hf.space/gradio_api/mcp/",
+        # 2. World Time MCP Server (Remote HF Space)
+        # This connects to your Space running app_world_time_mcp_server.py
+        servers["world_time"] = {
+            "url": "https://gfiamon-date-time-mpc-server-tool.hf.space/gradio_api/mcp/sse",
             "transport": "sse"
         }
         

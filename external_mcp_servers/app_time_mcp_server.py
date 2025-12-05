@@ -75,6 +75,6 @@ if __name__ == "__main__":
         mcp_server=True,
         share=False,
         server_name="0.0.0.0",
-        server_port=7860,
+        server_port=7870,
         quiet=True
     )

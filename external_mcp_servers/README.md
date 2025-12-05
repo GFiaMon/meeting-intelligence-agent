@@ -93,10 +93,12 @@ Once deployed, update your `src/config/settings.py`:
 
 ```python
 servers["berlin_time"] = {
-    "url": "https://huggingface.co/spaces/YOUR_USERNAME/YOUR_SPACE_NAME/gradio_api/mcp/",
+    "url": "https://huggingface.co/spaces/YOUR_USERNAME/YOUR_SPACE_NAME/gradio_api/mcp/sse",
     "transport": "sse"
 }
 ```
+
+**Note:** The URL must end with `/sse`.
 
 ---
 

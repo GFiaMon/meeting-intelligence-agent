@@ -114,5 +114,5 @@ if __name__ == "__main__":
         mcp_server=True,
         share=False,
         server_name="0.0.0.0",
-        server_port=7860  # Different port so both can run simultaneously
+        server_port=7871  # Different port so both can run simultaneously
     )

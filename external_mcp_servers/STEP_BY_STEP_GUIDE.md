@@ -119,23 +119,38 @@ Once deployed, your agent needs to know where to look.
 
 ```python
 servers["berlin_time"] = {
-    # 1. Use your Space URL
-    # Format: https://huggingface.co/spaces/USERNAME/SPACE_NAME/gradio_api/mcp/
-    "url": "https://gfiamon-date-time-mpc-server-tool.hf.space/gradio_api/mcp/",
+    # 1. Use your Space URL (MUST end with /sse)
+    # Format: https://huggingface.co/spaces/USERNAME/SPACE_NAME/gradio_api/mcp/sse
+    "url": "https://gfiamon-date-time-mpc-server-tool.hf.space/gradio_api/mcp/sse",
+    
+    # OR for Local Testing (use 127.0.0.1 and /sse)
+    # "url": "http://127.0.0.1:7870/gradio_api/mcp/sse",
     
     # 2. Use 'sse' transport (Server-Sent Events)
     "transport": "sse"
 }
 ```
 
+**CRITICAL:** You **MUST** append `/sse` to the end of the URL. If you forget this, the connection will hang!
+
 ### How It Works
 
 1. **Agent Starts:** Connects to that URL via SSE.
 2. **Discovery:** Asks "What tools do you have?"
 3. **World Time:** Server replies "I have `get_time_for_city` which takes a `city` string".
-4. **User Asks:** "Time in Tokyo?"
-5. **LLM:** "Call `get_time_for_city(city='Tokyo')`"
-6. **Agent:** Sends command to HF Space -> Gets result -> Shows user.
+### Switching Between Servers
+
+If you want to use the **World Time** server (which allows choosing a city), just update your `settings.py`:
+
+```python
+        # 2. World Time MCP Server (Remote HF Space)
+        servers["world_time"] = {
+            "url": "https://gfiamon-date-time-mpc-server-tool.hf.space/gradio_api/mcp/sse",
+            "transport": "sse"
+        }
+```
+
+The agent will automatically discover the new `get_time_for_city` tool next time it starts!
 
 ---
 
