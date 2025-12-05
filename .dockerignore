@@ -13,17 +13,44 @@ venv/
 .venv/
 pip-log.txt
 pip-delete-this-directory.txt
+.pytest_cache/
 
 # Environment variables
 .env
 .env.local
 .env.*
 
+
 # OS
 .DS_Store
+Thumbs.db
 
-# Project specific
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Gradio Cache
+.gradio/
+
+# Project Specific - Archives & Drafts
 archive/
-docs/
+scratchpad/
+
+# Tests
+test/
 tests/
+# Scripts (Pinecone Management)
+scripts/
+
+# Documentation & Assets (Not needed for runtime)
+docs/
+*.md
+*.png
+*.jpg
+*.jpeg
+LICENSE
+
+# External MCP Servers (run locally or separately)
 external_mcp_servers/

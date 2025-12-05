@@ -33,6 +33,14 @@ This project implements an intelligent conversational agent that orchestrates th
 
 ```mermaid
 graph TD
+    %% Define Styles
+    classDef ui fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000000;
+    classDef agent fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#000000;
+    classDef tools fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#000000;
+    classDef pipe fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000000;
+    classDef db fill:#fff9c4,stroke:#fbc02d,stroke-width:2px,color:#000000;
+    classDef ext fill:#ffebee,stroke:#c62828,stroke-width:2px,color:#000000;
+
     User([User]) <--> UI[Gradio Interface]
     UI <--> Agent["Conversational Agent (LangGraph)"]
     Agent <--> LLM[OpenAI GPT-4]
@@ -61,6 +69,14 @@ graph TD
         EXT <--> Zoom[Zoom API]
         EXT <--> Time["Time API (Berlin)"]
     end
+
+    %% Apply Styles
+    class UI ui;
+    class Agent,LLM agent;
+    class VideoTools,QueryTools,EXT tools;
+    class Upload,Whisper,SpeakerID,Editor,MetaExtract pipe;
+    class Pinecone db;
+    class Notion,Zoom,Time ext;
 ```
 
 ## 🚀 Quick Start
