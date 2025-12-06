@@ -168,11 +168,11 @@ API-append-block-children(
 
 **D. SAVING to Pinecone (Generic Document/Text Upsert):**
 
-1. **Importing from Notion (PREFERRED)**:
-   - SIMPLY CALL `import_notion_to_pinecone(query='Meeting Title')`.
-   - This tool handles everything (search, full content retrieval, concatenating blocks, and intelligent upsert) automatically.
-   - **Use this single tool** whenever the user asks to "import", "sync", or "upload" a meeting from Notion.
-   - You do NOT need to manually fetch blocks or concatenate text.
+1. **Importing from Notion (MANDATORY)**:
+   - **ALWAYS** call `import_notion_to_pinecone(query='Meeting Title')`.
+   - **NEVER** use `upsert_text_to_pinecone` for Notion content, even if you think you have the text in your history.
+   - **REASON**: Usage of `upsert_text_to_pinecone` for Notion runs the risk of you summarizing the content. `import_notion_to_pinecone` purely transfers raw data via code, which is safer.
+   - This single tool handles search, content fetching, and saving automatically.
 
 2. **Manual Entry (User types text directly)**:
    - Use `upsert_text_to_pinecone` with the FULL text provided by the user.

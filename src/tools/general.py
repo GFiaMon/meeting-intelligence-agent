@@ -82,12 +82,15 @@ def search_meetings(query: str, max_results: int = 5, meeting_id: Optional[str] 
         for i, doc in enumerate(docs, 1):
             metadata = doc.metadata
             meeting_id = metadata.get("meeting_id", "unknown")
-            meeting_date = metadata.get("meeting_date", "unknown")  # ✅ Fixed: was "date"
             chunk_index = metadata.get("chunk_index", "?")
+            summary = metadata.get("summary", "N/A")
+            speakers = metadata.get("speaker_mapping", "N/A")
             
             result_parts.append(
                 f"\n--- Segment {i} ---\n"
                 f"Meeting: {meeting_id} (Date: {meeting_date})\n"
+                f"Summary: {summary}\n"
+                f"Speakers: {speakers}\n"
                 f"Chunk: {chunk_index}\n"
                 f"Content:\n{doc.page_content}\n"
             )
@@ -257,12 +260,57 @@ def import_notion_to_pinecone(query: str) -> str:
     if not Config.NOTION_TOKEN:
         return "❌ Error: NOTION_TOKEN not set in configuration."
 
-    
     headers = {
         "Authorization": f"Bearer {Config.NOTION_TOKEN}",
         "Notion-Version": "2022-06-28",
         "Content-Type": "application/json"
     }
+
+    def fetch_blocks_recursive(block_id: str, depth: int = 0) -> List[str]:
+        """Recursive helper to fetch blocks and their children."""
+        if depth > 5: # Safety limit for recursion depth
+            return []
+            
+        collected_text = []
+        cursor = None
+        has_more = True
+        
+        while has_more:
+            blocks_url = f"https://api.notion.com/v1/blocks/{block_id}/children"
+            params = {"page_size": 100}
+            if cursor:
+                params["start_cursor"] = cursor
+                
+            resp = requests.get(blocks_url, headers=headers, params=params)
+            if resp.status_code != 200:
+                print(f"⚠️ Error fetching sub-blocks for {block_id}: {resp.text}")
+                return []
+                
+            data = resp.json()
+            blocks = data.get("results", [])
+            
+            for block in blocks:
+                # 1. Extract text from this block
+                b_type = block.get("type")
+                plain_text = ""
+                if b_type and block.get(b_type) and "rich_text" in block[b_type]:
+                    rich_text = block[b_type]["rich_text"]
+                    plain_text = "".join([t.get("plain_text", "") for t in rich_text])
+                
+                # Append text if present
+                if plain_text.strip():
+                    collected_text.append(plain_text)
+
+                # 2. Check for children (Recursion)
+                if block.get("has_children", False):
+                    # Fetch children text and append
+                    children_text = fetch_blocks_recursive(block["id"], depth + 1)
+                    collected_text.extend(children_text)
+
+            has_more = data.get("has_more", False)
+            cursor = data.get("next_cursor")
+            
+        return collected_text
 
     try:
         # 1. Search for the page
@@ -294,44 +342,16 @@ def import_notion_to_pinecone(query: str) -> str:
              
         print(f"📄 Found Page: '{title}' ({page_id})")
 
-        # 2. Get Block Children (Full Content)
-        # We handle pagination to get ALL content
-        all_text = []
-        cursor = None
-        has_more = True
+        # 2. Recursive Fetch of All Content
+        all_text_lines = fetch_blocks_recursive(page_id)
         
-        while has_more:
-            blocks_url = f"https://api.notion.com/v1/blocks/{page_id}/children"
-            params = {"page_size": 100}
-            if cursor:
-                params["start_cursor"] = cursor
-                
-            resp = requests.get(blocks_url, headers=headers, params=params)
-            if resp.status_code != 200:
-                return f"❌ Error fetching blocks: {resp.text}"
-                
-            data = resp.json()
-            blocks = data.get("results", [])
-            
-            for block in blocks:
-                b_type = block.get("type")
-                if b_type and block.get(b_type) and "rich_text" in block[b_type]:
-                    rich_text = block[b_type]["rich_text"]
-                    plain_text = "".join([t.get("plain_text", "") for t in rich_text])
-                    if plain_text:
-                        all_text.append(plain_text)
-            
-            has_more = data.get("has_more", False)
-            cursor = data.get("next_cursor")
+        if not all_text_lines:
+             return f"⚠️ Page '{title}' found but appears empty or has no text blocks."
 
-        full_content = "\n\n".join(all_text)
+        full_content = "\n\n".join(all_text_lines)
         
-        if not full_content.strip():
-            return f"⚠️ Page '{title}' found but appears empty or has no text blocks."
-
-        # 3. Upsert to Pinecone (using the existing local function)
-        # This will trigger the MetadataExtractor automatically
-        return upsert_text_to_pinecone(text=full_content, title=title, source="Notion")
+        # 3. Upsert to Pinecone
+        return upsert_text_to_pinecone.invoke({"text": full_content, "title": title, "source": "Notion"})
 
     except Exception as e:
         return f"❌ Import failed: {str(e)}"
