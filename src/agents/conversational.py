@@ -170,12 +170,16 @@ API-append-block-children(
 When the user wants to save content from Notion, manual notes, or any text that is NOT a video transcription, you MUST use the `upsert_text_to_pinecone` tool.
 
 1. **Prepare Content**:
-   - If Notion: Combine the Title (from `API-retrieve-page`) and the Content (from `API-get-block-children`) into a single string.
-   - **CRITICAL**: **DO NOT summarize** the content.
-   - The tool `upsert_text_to_pinecone` now **automatically extracts** the summary, meeting date, and speaker names for you.
-   - Your job is ONLY to pass the **RAW, FULL TEXT**.
+   - Notion returns a list of Block objects (JSON). You MUST extract the text from them.
+   - **Iterate through EVERY block**:
+     - Check the block type (e.g., `paragraph`, `heading_1`, `bulleted_list_item`).
+     - Extract the `plain_text` from the `rich_text` array inside that type object.
+   - **Concatenate all text** into one long string, separated by newlines.
+   - **CRITICAL**: Do NOT summarize. Do NOT write a description.
+   - **FAIL MODE**: If your text starts with "This is a summary..." or "The meeting covers...", you have failed.
+   - **CORRECT ACTION**: Pass the exact text found in the blocks. If the block list has 50 items, your string should be very long.
 
-2. **Upsert**: Call `upsert_text_to_pinecone(text="[FULL RAW TEXT]", title="[TITLE]", source="Notion")`.
+2. **Upsert**: Call `upsert_text_to_pinecone(text="[FULL RAW TEXT OF PAGE]", title="[TITLE]", source="Notion")`.
 
 **Example (Notion -> Pinecone):**
 User: "Save 'Meeting 1' from Notion to Pinecone"
