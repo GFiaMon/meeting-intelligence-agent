@@ -224,13 +224,28 @@ def list_recent_meetings(limit: int = 10) -> str:
         return f"Error listing meetings: {str(e)}"
 
 
+@tool
+def get_current_time() -> str:
+    """
+    Get the current date and time.
+    
+    Use this tool when you need to answer questions about relative time 
+    (e.g., "what happened yesterday?", "meetings from last week?").
+    
+    Returns:
+        Current date and time in YYYY-MM-DD HH:MM format
+    """
+    return datetime.now().strftime("%Y-%m-%d %H:%M")
+
+
 # Export all tools for easy import
 __all__ = [
     "initialize_tools",
     "search_meetings",
     "get_meeting_metadata",
     "list_recent_meetings",
-    "upsert_text_to_pinecone"
+    "upsert_text_to_pinecone",
+    "get_current_time"
 ]
 
 
