@@ -319,7 +319,7 @@ def import_notion_to_pinecone(query: str) -> str:
         search_payload = {
             "query": query,
             "filter": {"value": "page", "property": "object"},
-            "page_size": 1
+            "page_size": 5
         }
         response = requests.post(search_url, headers=headers, json=search_payload)
         
@@ -330,10 +330,31 @@ def import_notion_to_pinecone(query: str) -> str:
         if not results:
             return f"❌ No Notion page found matching '{query}'."
             
-        page = results[0]
+        # Select best match
+        best_page = None
+        for p in results:
+            # Extract title for this page
+            p_props = p.get("properties", {})
+            p_title_prop = next((v for k, v in p_props.items() if v["id"] == "title"), None)
+            p_title = ""
+            if p_title_prop and p_title_prop.get("title"):
+                 p_title = "".join([t.get("plain_text", "") for t in p_title_prop.get("title", [])])
+            
+            # Simple substring match check
+            if query.lower() in p_title.lower():
+                best_page = p
+                print(f"✅ Match found: '{p_title}' matches query '{query}'")
+                break
+        
+        # Fallback to first result if no specific match found
+        if not best_page:
+            best_page = results[0]
+            print(f"⚠️ No exact match. Defaulting to first result.")
+            
+        page = best_page
         page_id = page["id"]
         
-        # Extract title safely
+        # Re-extract title for the selected page for final usage
         props = page.get("properties", {})
         title_prop = next((v for k, v in props.items() if v["id"] == "title"), None)
         title = "Untitled"

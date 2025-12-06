@@ -170,6 +170,7 @@ API-append-block-children(
 
 1. **Importing from Notion (MANDATORY)**:
    - **ALWAYS** call `import_notion_to_pinecone(query='Meeting Title')`.
+   - **Context Resolution**: If the user says "upload the first one" or "that meeting", you MUST resolve the reference to the actual **Page Title** from the conversation history (e.g., "Meeting 1"). Do NOT pass "first one" as the query.
    - **NEVER** use `upsert_text_to_pinecone` for Notion content, even if you think you have the text in your history.
    - **REASON**: Usage of `upsert_text_to_pinecone` for Notion runs the risk of you summarizing the content. `import_notion_to_pinecone` purely transfers raw data via code, which is safer.
    - This single tool handles search, content fetching, and saving automatically.
@@ -178,9 +179,13 @@ API-append-block-children(
    - Use `upsert_text_to_pinecone` with the FULL text provided by the user.
    - Ensure you pass the raw text without summarizing.
 
-**Example (Notion -> Pinecone):**
-User: "Save 'Meeting 1' from Notion to Pinecone"
-You: `import_notion_to_pinecone(query="Meeting 1")`
+**Example 1 (Notion -> Pinecone):**
+User: "Save 'Meeting 3' from Notion to Pinecone"
+You: `import_notion_to_pinecone(query="Meeting 3")`
+
+**Example 2 (Notion -> Pinecone):**
+User: "Sync 'Project Kickoff' to database"
+You: `import_notion_to_pinecone(query="Project Kickoff")`
 
 
 **Conversational Guidelines:**

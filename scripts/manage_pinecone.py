@@ -40,11 +40,11 @@ def list_meetings():
     
     for i, meeting in enumerate(meetings, 1):
         print(f"{i}. Meeting ID: {meeting['meeting_id']}")
-        print(f"   Title: {meeting.get('title', 'N/A')}")
+        print(f"   Title: {meeting.get('meeting_title', 'N/A')}")
         print(f"   Date: {meeting.get('meeting_date', 'N/A')}")
-        print(f"   Duration: {meeting.get('duration', 'N/A')}")
+        print(f"   Duration: {meeting.get('meeting_duration', 'N/A')}")
         print(f"   Source File: {meeting.get('source_file', 'N/A')}")
-        print(f"   Participants: {', '.join(meeting.get('participants', [])) or 'N/A'}")
+        print(f"   Participants: {', '.join(meeting.get('speaker_mapping', [])) or 'N/A'}")
         print("-" * 80)
 
 
