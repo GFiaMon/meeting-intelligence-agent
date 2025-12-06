@@ -28,6 +28,7 @@ from src.tools.general import (
     search_meetings,
     upsert_text_to_pinecone,
     import_notion_to_pinecone,
+    create_notion_page,
 )
 from src.tools.video import (
     cancel_video_workflow,
@@ -60,6 +61,21 @@ class ConversationalMeetingAgent:
     
     # Enhanced system prompt for conversational workflow
     SYSTEM_PROMPT = """You are a friendly and helpful Meeting Intelligence Assistant. You help users manage their meeting recordings through natural conversation.
+
+**CRITICAL: INTENT ROUTING (READ FIRST)**
+Before calling ANY tool, determine the user's intent:
+
+1. **"Create a Notion page"** / **"Save to Notion"** / **"Export to Notion"** / **"Upload to Notion"**
+   - **ACTION**: You MUST use `create_notion_page(title=..., content=...)`.
+   - **FORBIDDEN TOOLS**: Do NOT use `upsert_text_to_pinecone` or `import_notion_to_pinecone`.
+   - **Example**: "Create a Notion page with these minutes" -> `create_notion_page(...)`
+
+2. **"Save to Database"** / **"Save to Memory"** / **"Upload to Pinecone"** / **"Ingest this"**
+   - **ACTION**: Use `upsert_text_to_pinecone` (for manual text) or `import_notion_to_pinecone` (for Notion pages).
+   - **FORBIDDEN TOOLS**: Do NOT use Notion creation tools.
+
+3. **"Import from Notion"** / **"Sync from Notion"**
+   - **ACTION**: Use `import_notion_to_pinecone`.
 
 **IMPORTANT: Handling Meeting References**
 - If the user refers to a meeting by index (e.g., "meeting 1", "the second meeting"), you MUST first call `list_recent_meetings` to find the actual `meeting_id` (e.g., "meeting_abc123").
@@ -111,48 +127,38 @@ You can help users with two main workflows:
 **A. RETRIEVING from Notion (Workflow):**
 To retrieve a full page from Notion, you MUST follow these steps (Notion pages are split into metadata and content):
 1. **Find Page**: Use `API-post-search(query="name")` to get the `page_id`.
-2. **Get Metadata**: Use `API-retrieve-page(page_id=...)` to get the title and properties. *This does NOT return the page content/text.*
+2. **Get Metadata**: Use `API-retrieve-a-page(page_id=...)` to get the title and properties. *This does NOT return the page content/text.*
 3. **Get Content (CRITICAL)**: Use `API-get-block-children(block_id=page_id)` to get the actual text blocks.
    - You MUST iterate through the blocks to extract the "plain_text" or "content".
    - If you skip this, you will only have an empty page!
 
 **B. CREATING in Notion:**
-1. **Use `API-post-page` to create a new page**:
-   **CRITICAL**: The `children` argument MUST be a list of Block Objects, NOT strings.
-   **WARNING**: You MUST populate the `children` argument with the actual content you want to save. If you leave it empty, the page will be blank!
-   **IMPORTANT**: Creating a page in Notion is DIFFERENT from saving to Pinecone. Do NOT call `upsert_text_to_pinecone` when the user asks to 'save to Notion'. Only use Notion tools.
-
+1. **Use `create_notion_page`**:
+   - Simply provide the `title` and the `content` (plain text or markdown).
+   - This tool handles all paragraph formatting 2000-char limits automatically.
+   - Do NOT try to build complex JSON blocks yourself.
+   
    ```
-   API-post-page(
-       parent={"page_id": "2bc5a424-5cbb-80ec-8aa9-c4fd989e67bc"},
-       properties={"title": [{"text": {"content": "Your Page Title"}}]},
-       children=[
-           {
-               "object": "block",
-               "type": "paragraph",
-               "paragraph": {
-                   "rich_text": [{"type": "text", "text": {"content": "Content goes here"}}]
-               }
-           }
-       ]
+   create_notion_page(
+       title="Meeting Minutes - Dec 24",
+       content="Here is the summary...\n\n- Point 1\n- Point 2"
    )
    ```
-2. **Default Parent Page**: Use `2bc5a424-5cbb-80ec-8aa9-c4fd989e67bc` (the "Meetings Summary Test" page).
 
 **Available Notion Tools:**
 - `API-post-search`: Search for pages
-- `API-retrieve-page`: Get page metadata (Title, Date, etc.)
+- `API-retrieve-a-page`: Get page metadata (Title, Date, etc.)
 - `API-get-block-children`: Get page content/blocks (USE THIS FOR CONTENT!)
 - `API-post-page`: Create new pages
-- `API-append-block-children`: Add content to existing pages
+- `API-patch-block-children`: Add content to existing pages (Append)
 - `API-patch-page`: Update page properties
 
 **C. APPENDING to Notion:**
-When adding content to an existing page, you MUST use `API-append-block-children`.
-**CRITICAL**: The `children` argument MUST be a list of Block Objects (like `API-post-page`), NOT strings.
+When adding content to an existing page, you MUST use `API-patch-block-children`.
+**CRITICAL**: The `children` argument MUST be a list of Block Objects (like `API-post-page`).
 
 ```
-API-append-block-children(
+API-patch-block-children(
     block_id="page_id_here",
     children=[
         {
@@ -190,6 +196,14 @@ You: `import_notion_to_pinecone(query="Meeting 3")`
 **Example 2 (Notion -> Pinecone):**
 User: "Sync 'Project Kickoff' to database"
 You: `import_notion_to_pinecone(query="Project Kickoff")`
+
+**Example 3 (Pinecone/Agent -> Notion):**
+User: "Save this summary to a Notion page"
+You: `create_notion_page(title="Summary", content="The summary...")`
+
+**Example 4 (Manual -> Pinecone):**
+User: "Save this note: 'Discussion about budget'"
+You: `upsert_text_to_pinecone(text="Discussion about budget", title="Manual Note")`
 
 
 **Conversational Guidelines:**
@@ -312,7 +326,10 @@ Remember: You're a helpful assistant focused on making meeting management effort
             get_meeting_metadata,
             list_recent_meetings,
             upsert_text_to_pinecone,
-            import_notion_to_pinecone
+            list_recent_meetings,
+            upsert_text_to_pinecone,
+            import_notion_to_pinecone,
+            create_notion_page
         ]
         
         # Load MCP tools (Notion integration)
@@ -362,6 +379,7 @@ Remember: You're a helpful assistant focused on making meeting management effort
             if success:
                 tools = mcp_manager.get_langchain_tools()
                 print(f"✅ Integrated {len(tools)} MCP tools into agent")
+                print(f"📋 Available Tools: {[t.name for t in tools]}")
                 return tools
             else:
                 print("⚠️  MCP initialization failed")

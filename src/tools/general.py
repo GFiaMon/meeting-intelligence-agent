@@ -250,9 +250,12 @@ def import_notion_to_pinecone(query: str) -> str:
     """
     Directly import a Notion page to Pinecone by name.
     
-    Use this tool when the user wants to Import/Save/Upload a Notion page.
-    This tool handles the entire process (Search -> Fetch Content -> Upsert) automatically
-    to ensure NO data is lost or summarized.
+    Fetch a Notion page and save it TO Pinecone.
+    
+    Use this tool ONLY when the user wants to *Import* or *Sync* a page FROM Notion INTO the database.
+    Do NOT use this tool to write content TO Notion. Use `API-post-page` or `API-append-block-children` for that.
+    
+    This tool handles the entire process (Search -> Fetch Content -> Upsert) automatically.
     
     Args:
         query: The name of the Notion page to find (e.g., "Meeting 1").
@@ -417,8 +420,78 @@ __all__ = [
     "list_recent_meetings",
     "upsert_text_to_pinecone",
     "import_notion_to_pinecone",
+    "create_notion_page",
     "get_current_time"
 ]
+
+
+@tool
+def create_notion_page(title: str, content: str) -> str:
+    """
+    Create a new page in Notion with a Title and Text Content.
+    
+    Use this tool for ANY request to "Write to Notion", "Save to Notion", "Create a page", "Draft an email in Notion".
+    This tool handles all the formatting automatically.
+    
+    Args:
+        title: The title of the new page.
+        content: The text content of the page.
+    
+    Returns:
+        Status message with link to the new page.
+    """
+    if not Config.NOTION_TOKEN:
+        return "❌ Error: NOTION_TOKEN not set."
+
+    headers = {
+        "Authorization": f"Bearer {Config.NOTION_TOKEN}",
+        "Notion-Version": "2022-06-28",
+        "Content-Type": "application/json"
+    }
+
+    # Split content into chunks of 2000 chars (Notion block limit)
+    chunks = [content[i:i+2000] for i in range(0, len(content), 2000)]
+    
+    children_blocks = []
+    for chunk in chunks:
+        children_blocks.append({
+            "object": "block",
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [{"type": "text", "text": {"content": chunk}}]
+            }
+        })
+
+    # Default parent page: Meetings Summary Test
+    parent_page_id = "2bc5a424-5cbb-80ec-8aa9-c4fd989e67bc"
+    
+    payload = {
+        "parent": {"page_id": parent_page_id},
+        "properties": {
+            "title": [
+                {
+                    "text": {
+                        "content": title
+                    }
+                }
+            ]
+        },
+        "children": children_blocks
+    }
+    
+    try:
+        url = "https://api.notion.com/v1/pages"
+        resp = requests.post(url, headers=headers, json=payload)
+        
+        if resp.status_code == 200:
+            data = resp.json()
+            url = data.get('url', 'URL not found')
+            return f"✅ Successfully created Notion page: '{title}'.\nLink: {url}"
+        else:
+            return f"❌ Failed to create Notion page: {resp.status_code} - {resp.text}"
+            
+    except Exception as e:
+        return f"❌ Error creating page: {str(e)}"
 
 
 @tool
@@ -428,6 +501,9 @@ def upsert_text_to_pinecone(text: str, title: str, source: str = "Manual Entry",
     
     Automatically extracts metadata (summary, date, speakers) from the text.
     Use this tool when retrieving full content from Notion or other sources.
+    
+    CRITICAL: Do NOT use this tool if the user wants to "Save to Notion" or "Create a Page".
+    Use the Notion tools (`API-post-page`) for that. Use this ONLY for saving to Pinecone/Database.
     
     Args:
         text: The FULL content to save (do not summarize!)
