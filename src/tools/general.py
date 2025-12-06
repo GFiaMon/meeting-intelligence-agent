@@ -82,13 +82,16 @@ def search_meetings(query: str, max_results: int = 5, meeting_id: Optional[str] 
         for i, doc in enumerate(docs, 1):
             metadata = doc.metadata
             meeting_id = metadata.get("meeting_id", "unknown")
+            meeting_date = metadata.get("meeting_date", "N/A")  # Fixed missing variable
+            meeting_title = metadata.get("meeting_title", "Untitled") # Added title
             chunk_index = metadata.get("chunk_index", "?")
             summary = metadata.get("summary", "N/A")
             speakers = metadata.get("speaker_mapping", "N/A")
             
             result_parts.append(
                 f"\n--- Segment {i} ---\n"
-                f"Meeting: {meeting_id} (Date: {meeting_date})\n"
+                f"Meeting: {meeting_title} (ID: {meeting_id})\n"
+                f"Date: {meeting_date}\n"
                 f"Summary: {summary}\n"
                 f"Speakers: {speakers}\n"
                 f"Chunk: {chunk_index}\n"

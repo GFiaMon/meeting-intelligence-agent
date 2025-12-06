@@ -119,6 +119,9 @@ To retrieve a full page from Notion, you MUST follow these steps (Notion pages a
 **B. CREATING in Notion:**
 1. **Use `API-post-page` to create a new page**:
    **CRITICAL**: The `children` argument MUST be a list of Block Objects, NOT strings.
+   **WARNING**: You MUST populate the `children` argument with the actual content you want to save. If you leave it empty, the page will be blank!
+   **IMPORTANT**: Creating a page in Notion is DIFFERENT from saving to Pinecone. Do NOT call `upsert_text_to_pinecone` when the user asks to 'save to Notion'. Only use Notion tools.
+
    ```
    API-post-page(
        parent={"page_id": "2bc5a424-5cbb-80ec-8aa9-c4fd989e67bc"},

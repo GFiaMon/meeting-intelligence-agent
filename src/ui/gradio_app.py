@@ -384,6 +384,16 @@ The agent will acknowledge your upload and help you analyze the meeting.
                     "Summarize the key decisions from the last meeting",
                     "What are the action items assigned to me?",
                     "List all meetings from October",
+                    "Create a summary for sendout",
+                    
+                    # self created REVIEW!
+                    "Show me the meeting minutes from last week",
+                    "Who were attendants from last week's meeting?",
+                    "When was the last meeting where budget was discussed?",
+                    "Who is responsible for what in that meeting?", 
+                    "What tasks have been assigned to whom?",
+                    "What should person abc do?",
+
                     "Find discussions about 'budget' and 'costs'",
                     "What did John say about the deadline?",
                     "Draft a follow-up email based on this meeting",
