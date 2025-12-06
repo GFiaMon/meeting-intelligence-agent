@@ -315,9 +315,9 @@ The agent will acknowledge your upload and help you analyze the meeting.
             
             for i, meeting in enumerate(meetings, 1):
                 meeting_id = meeting.get('meeting_id', 'N/A')
-                title = meeting.get('title', 'Untitled')
+                title = meeting.get('meeting_title', 'Untitled')
                 date = meeting.get('meeting_date', 'N/A')
-                duration = meeting.get('duration', 'N/A')
+                duration = meeting.get('meeting_duration', 'N/A')
                 source_file = meeting.get('source_file', 'N/A')
                 
                 table_md += f"| {i} | `{meeting_id}` | {title} | {date} | {duration} | {source_file} |\n"

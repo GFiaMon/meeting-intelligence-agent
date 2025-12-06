@@ -161,12 +161,12 @@ class PineconeManager:
                     meetings[meeting_id] = {
                         "meeting_id": meeting_id,
                         "meeting_date": metadata.get("meeting_date"),
-                        "title": metadata.get("title", "Untitled Meeting"),
-                        "duration": metadata.get("duration", "N/A"),
+                        "meeting_title": metadata.get("meeting_title", metadata.get("title", "Untitled Meeting")),
+                        "meeting_duration": metadata.get("duration", metadata.get("meeting_duration", "N/A")),
                         "source_file": metadata.get("source_file", "N/A"),
                     }
             
-            return list(meetings.values())
+            return list(meetings.values())  
             
         except Exception as e:
             print(f"Error listing meetings: {e}")
