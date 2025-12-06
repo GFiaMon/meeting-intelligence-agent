@@ -11,6 +11,7 @@ Reference: https://docs.langchain.com/oss/python/langchain/tools#create-tools
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import uuid
+import requests
 from langchain.tools import tool
 from langchain_core.documents import Document
 
@@ -238,6 +239,104 @@ def get_current_time() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M")
 
 
+@tool
+def import_notion_to_pinecone(query: str) -> str:
+    """
+    Directly import a Notion page to Pinecone by name.
+    
+    Use this tool when the user wants to Import/Save/Upload a Notion page.
+    This tool handles the entire process (Search -> Fetch Content -> Upsert) automatically
+    to ensure NO data is lost or summarized.
+    
+    Args:
+        query: The name of the Notion page to find (e.g., "Meeting 1").
+        
+    Returns:
+        Status message indicating success or failure.
+    """
+    if not Config.NOTION_TOKEN:
+        return "❌ Error: NOTION_TOKEN not set in configuration."
+
+    
+    headers = {
+        "Authorization": f"Bearer {Config.NOTION_TOKEN}",
+        "Notion-Version": "2022-06-28",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        # 1. Search for the page
+        print(f"🔍 Searching Notion for: {query}...")
+        search_url = "https://api.notion.com/v1/search"
+        search_payload = {
+            "query": query,
+            "filter": {"value": "page", "property": "object"},
+            "page_size": 1
+        }
+        response = requests.post(search_url, headers=headers, json=search_payload)
+        
+        if response.status_code != 200:
+            return f"❌ Notion Search Error: {response.text}"
+            
+        results = response.json().get("results", [])
+        if not results:
+            return f"❌ No Notion page found matching '{query}'."
+            
+        page = results[0]
+        page_id = page["id"]
+        
+        # Extract title safely
+        props = page.get("properties", {})
+        title_prop = next((v for k, v in props.items() if v["id"] == "title"), None)
+        title = "Untitled"
+        if title_prop and title_prop.get("title"):
+             title = "".join([t.get("plain_text", "") for t in title_prop.get("title", [])])
+             
+        print(f"📄 Found Page: '{title}' ({page_id})")
+
+        # 2. Get Block Children (Full Content)
+        # We handle pagination to get ALL content
+        all_text = []
+        cursor = None
+        has_more = True
+        
+        while has_more:
+            blocks_url = f"https://api.notion.com/v1/blocks/{page_id}/children"
+            params = {"page_size": 100}
+            if cursor:
+                params["start_cursor"] = cursor
+                
+            resp = requests.get(blocks_url, headers=headers, params=params)
+            if resp.status_code != 200:
+                return f"❌ Error fetching blocks: {resp.text}"
+                
+            data = resp.json()
+            blocks = data.get("results", [])
+            
+            for block in blocks:
+                b_type = block.get("type")
+                if b_type and block.get(b_type) and "rich_text" in block[b_type]:
+                    rich_text = block[b_type]["rich_text"]
+                    plain_text = "".join([t.get("plain_text", "") for t in rich_text])
+                    if plain_text:
+                        all_text.append(plain_text)
+            
+            has_more = data.get("has_more", False)
+            cursor = data.get("next_cursor")
+
+        full_content = "\n\n".join(all_text)
+        
+        if not full_content.strip():
+            return f"⚠️ Page '{title}' found but appears empty or has no text blocks."
+
+        # 3. Upsert to Pinecone (using the existing local function)
+        # This will trigger the MetadataExtractor automatically
+        return upsert_text_to_pinecone(text=full_content, title=title, source="Notion")
+
+    except Exception as e:
+        return f"❌ Import failed: {str(e)}"
+
+
 # Export all tools for easy import
 __all__ = [
     "initialize_tools",
@@ -245,6 +344,7 @@ __all__ = [
     "get_meeting_metadata",
     "list_recent_meetings",
     "upsert_text_to_pinecone",
+    "import_notion_to_pinecone",
     "get_current_time"
 ]
 

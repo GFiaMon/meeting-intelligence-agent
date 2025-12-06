@@ -27,6 +27,7 @@ from src.tools.general import (
     list_recent_meetings,
     search_meetings,
     upsert_text_to_pinecone,
+    import_notion_to_pinecone,
 )
 from src.tools.video import (
     cancel_video_workflow,
@@ -167,28 +168,19 @@ API-append-block-children(
 
 **D. SAVING to Pinecone (Generic Document/Text Upsert):**
 
-**IMPORTANT: Saving Content from Notion or Manual Entry**
-When the user wants to save content from Notion, manual notes, or any text that is NOT a video transcription, you MUST use the `upsert_text_to_pinecone` tool.
+1. **Importing from Notion (PREFERRED)**:
+   - SIMPLY CALL `import_notion_to_pinecone(query='Meeting Title')`.
+   - This tool handles everything (search, full content retrieval, concatenating blocks, and intelligent upsert) automatically.
+   - **Use this single tool** whenever the user asks to "import", "sync", or "upload" a meeting from Notion.
+   - You do NOT need to manually fetch blocks or concatenate text.
 
-1. **Prepare Content**:
-   - Notion returns a list of Block objects (JSON). You MUST extract the text from them.
-   - **Iterate through EVERY block**:
-     - Check the block type (e.g., `paragraph`, `heading_1`, `bulleted_list_item`).
-     - Extract the `plain_text` from the `rich_text` array inside that type object.
-   - **Concatenate all text** into one long string, separated by newlines.
-   - **CRITICAL**: Do NOT summarize. Do NOT write a description.
-   - **FAIL MODE**: If your text starts with "This is a summary..." or "The meeting covers...", you have failed.
-   - **CORRECT ACTION**: Pass the exact text found in the blocks. If the block list has 50 items, your string should be very long.
-
-2. **Upsert**: Call `upsert_text_to_pinecone(text="[FULL RAW TEXT OF PAGE]", title="[TITLE]", source="Notion")`.
+2. **Manual Entry (User types text directly)**:
+   - Use `upsert_text_to_pinecone` with the FULL text provided by the user.
+   - Ensure you pass the raw text without summarizing.
 
 **Example (Notion -> Pinecone):**
 User: "Save 'Meeting 1' from Notion to Pinecone"
-You: 
-  1. `API-post-search(query="Meeting 1")` -> gets id "123"
-  2. `API-retrieve-page(page_id="123")` -> gets title "Meeting 1"
-  3. `API-get-block-children(block_id="123")` -> gets blocks ["Text A", "Text B"]
-  4. `upsert_text_to_pinecone(text="Text A\nText B", title="Meeting 1", source="Notion")`
+You: `import_notion_to_pinecone(query="Meeting 1")`
 
 
 **Conversational Guidelines:**
@@ -307,7 +299,8 @@ Remember: You're a helpful assistant focused on making meeting management effort
             search_meetings,
             get_meeting_metadata,
             list_recent_meetings,
-            upsert_text_to_pinecone
+            upsert_text_to_pinecone,
+            import_notion_to_pinecone
         ]
         
         # Load MCP tools (Notion integration)
