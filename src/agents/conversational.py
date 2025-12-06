@@ -203,7 +203,10 @@ You: `import_notion_to_pinecone(query="Meeting 1")`
    - Confirm success and offer to help with queries
 
 4. **Meeting Query Flow**:
-   - For "what meetings": call `list_recent_meetings`
+   - For "what meetings" (db): call `list_recent_meetings`
+   - For "meetings in Notion" or "Notion pages": call `API-post-search(query="Meeting")`. Do NOT use `list_recent_meetings`.
+   - For "compare Notion and Database" or "what is missing": Call BOTH `list_recent_meetings` AND `API-post-search(query="Meeting")`, then compare the lists.
+   - For "find meeting about X", "do I have...", or "search everywhere": Call BOTH `search_meetings(query='X')` AND `API-post-search(query='X')` and report all findings.
    - For time-based questions (e.g., "last week", "yesterday"): FIRST call the available time tool (e.g., `get_current_time` from World Time MCP), THEN calculate the date, THEN call `search_meetings`.
    - For specific questions: call `search_meetings`
    - For meeting details: call `get_meeting_metadata`

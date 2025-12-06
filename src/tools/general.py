@@ -182,7 +182,7 @@ def list_recent_meetings(limit: int = 10) -> str:
         # Get retriever with high k to fetch many documents
         retriever = _pinecone_manager.get_retriever(
             namespace=Config.PINECONE_NAMESPACE,
-            search_kwargs={"k": 100}  # Fetch many to find unique meetings
+            search_kwargs={"k": 500}  # Fetch many to find unique meetings
         )
         
         # Use a generic query to get documents
