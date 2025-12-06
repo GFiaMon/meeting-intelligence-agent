@@ -322,7 +322,8 @@ def import_notion_to_pinecone(query: str) -> str:
         search_payload = {
             "query": query,
             "filter": {"value": "page", "property": "object"},
-            "page_size": 5
+            "sort": {"direction": "descending", "timestamp": "last_edited_time"},
+            "page_size": 25
         }
         response = requests.post(search_url, headers=headers, json=search_payload)
         
@@ -335,6 +336,9 @@ def import_notion_to_pinecone(query: str) -> str:
             
         # Select best match
         best_page = None
+        exact_match = None
+        substring_match = None
+        
         for p in results:
             # Extract title for this page
             p_props = p.get("properties", {})
@@ -343,16 +347,40 @@ def import_notion_to_pinecone(query: str) -> str:
             if p_title_prop and p_title_prop.get("title"):
                  p_title = "".join([t.get("plain_text", "") for t in p_title_prop.get("title", [])])
             
-            # Simple substring match check
-            if query.lower() in p_title.lower():
-                best_page = p
-                print(f"✅ Match found: '{p_title}' matches query '{query}'")
-                break
+            p_title_clean = p_title.lower().strip()
+            query_clean = query.lower().strip()
+            
+            # Check 1: Exact Match
+            if p_title_clean == query_clean:
+                exact_match = p
+                print(f"✅ Exact match found: '{p_title}'")
+                break # Found the perfect match
+            
+            # Check 2: Substring Match (save the first one found)
+            # Check 2: Substring Match (save the first one found)
+            if query_clean in p_title_clean and substring_match is None:
+                substring_match = p
+                print(f"🔍 Substring match candidate: '{p_title}'")
+            
+            # Print for debugging
+            print(f"   - Found result: '{p_title}'")
         
-        # Fallback to first result if no specific match found
-        if not best_page:
-            best_page = results[0]
-            print(f"⚠️ No exact match. Defaulting to first result.")
+        # Decide which page to use
+        if exact_match:
+            best_page = exact_match
+        elif substring_match:
+            best_page = substring_match
+            print("⚠️ Using substring match.")
+        else:
+            # Generate list of titles found to guide the user
+            titles_found = []
+            for p in results:
+                p_props = p.get("properties", {})
+                p_title_prop = next((v for k, v in p_props.items() if v["id"] == "title"), None)
+                if p_title_prop and p_title_prop.get("title"):
+                     titles_found.append("".join([t.get("plain_text", "") for t in p_title_prop.get("title", [])]))
+            
+            return f"❌ Could not find a specific match for '{query}'. Found these pages instead: {', '.join(titles_found)}. Please try again with the exact name."
             
         page = best_page
         page_id = page["id"]

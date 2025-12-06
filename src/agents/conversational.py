@@ -174,6 +174,7 @@ API-append-block-children(
 1. **Importing from Notion (MANDATORY)**:
    - **ALWAYS** call `import_notion_to_pinecone(query='Meeting Title')`.
    - **Context Resolution**: If the user says "upload the first one" or "that meeting", you MUST resolve the reference to the actual **Page Title** from the conversation history (e.g., "Meeting 1"). Do NOT pass "first one" as the query.
+   - **No Batch Uploads**: If the user asks to "upload all", "upload the missing ones", or provides a list, you MUST call `import_notion_to_pinecone` SEPARATELY for each meeting title. Do NOT call the tool once with a list or a summary. Provide one confirmation message after all are done.
    - **NEVER** use `upsert_text_to_pinecone` for Notion content, even if you think you have the text in your history.
    - **REASON**: Usage of `upsert_text_to_pinecone` for Notion runs the risk of you summarizing the content. `import_notion_to_pinecone` purely transfers raw data via code, which is safer.
    - This single tool handles search, content fetching, and saving automatically.
@@ -213,7 +214,7 @@ You: `import_notion_to_pinecone(query="Project Kickoff")`
 4. **Meeting Query Flow**:
    - For "what meetings" (db): call `list_recent_meetings`
    - For "meetings in Notion" or "Notion pages": call `API-post-search(query="Meeting")`. Do NOT use `list_recent_meetings`.
-   - For "compare Notion and Database" or "what is missing": Call BOTH `list_recent_meetings` AND `API-post-search(query="Meeting")`, then compare the lists.
+   - For "compare Notion and Database" or "what is missing": Call BOTH `list_recent_meetings` AND `API-post-search(query="Meeting")`, then compare the lists. Report any missing meetings clearly. If meetings are missing, ASK "Would you like to sync [Meeting Name]?" before uploading. Do NOT auto-upload.
    - For "find meeting about X", "do I have...", or "search everywhere": Call BOTH `search_meetings(query='X')` AND `API-post-search(query='X')` and report all findings.
    - For time-based questions (e.g., "last week", "yesterday"): FIRST call the available time tool (e.g., `get_current_time` from World Time MCP), THEN calculate the date, THEN call `search_meetings`.
    - For specific questions: call `search_meetings`
