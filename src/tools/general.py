@@ -15,6 +15,7 @@ from langchain.tools import tool
 from langchain_core.documents import Document
 
 from src.retrievers.pipeline import process_transcript_to_documents
+from src.processing.metadata_extractor import MetadataExtractor
 from src.config.settings import Config
 
 # Global reference to PineconeManager (will be set during initialization)
@@ -238,14 +239,14 @@ def upsert_text_to_pinecone(text: str, title: str, source: str = "Manual Entry",
     """
     Upsert any text content (e.g., Notion pages, manual notes) to Pinecone.
     
-    Use this tool when the user wants to save a Notion page, meeting notes, or any other text
-    that is NOT a video transcription.
+    Automatically extracts metadata (summary, date, speakers) from the text.
+    Use this tool when retrieving full content from Notion or other sources.
     
     Args:
-        text: The content to save
+        text: The FULL content to save (do not summarize!)
         title: Title of the document/meeting
         source: Source of the content (e.g., "Notion", "Manual Entry")
-        date: Date of the content (YYYY-MM-DD). Defaults to today.
+        date: Optional date override (YYYY-MM-DD). If not provided, AI extracts it from text or uses today.
     
     Returns:
         Success message with the generated meeting_id
@@ -254,36 +255,59 @@ def upsert_text_to_pinecone(text: str, title: str, source: str = "Manual Entry",
         return "Error: Pinecone service is not initialized."
         
     try:
-        # Generate ID and defaults
-        meeting_id = f"doc_{uuid.uuid4().hex[:8]}"
-        if not date:
-            date = datetime.now().strftime("%Y-%m-%d")
+        
+        # 1. Extract intelligent metadata
+        print(f"🔍 Extracting metadata for '{title}'...")
+        extractor = MetadataExtractor()
+        extracted = extractor.extract_metadata(text)
+        
+        # 2. Resolve final metadata values
+        final_summary = extracted.get("summary") or f"Imported from {source}"
+        
+        # Date logic: Argument > Extracted > Today
+        if date:
+            final_date = date
+        elif extracted.get("meeting_date"):
+            final_date = extracted.get("meeting_date")
+        else:
+            final_date = datetime.now().strftime("%Y-%m-%d")
             
-        # Create comprehensive metadata with consistent field names
+        speaker_mapping = extracted.get("speaker_mapping", {})
+            
+        # 3. Apply speaker mapping to text (improves searchability)
+        # Replaces "SPEAKER_00" -> "Name" directly in the text content
+        processed_text = extractor.apply_speaker_mapping(text, speaker_mapping)
+        
+        # 4. Generate ID and prepare metadata
+        meeting_id = f"doc_{uuid.uuid4().hex[:8]}"
+        
         meeting_metadata = {
             "meeting_id": meeting_id,
-            "meeting_date": date,  # ✅ Fixed: was "date"
+            "meeting_date": final_date,
             "date_transcribed": datetime.now().strftime("%Y-%m-%d"),
             "source": source,
-            "meeting_title": title,  # ✅ Fixed: was "title"
-            "summary": f"Imported from {source}",  # ✅ Added summary
+            "meeting_title": title,
+            "summary": final_summary,
             "source_file": f"{source.lower()}_upload",
             "transcription_model": "text_import",
-            "language": "en"
+            "language": "en",
+            "speaker_mapping": speaker_mapping
         }
         
-        # Process text into documents (using fallback chunking since no speaker data)
+        # 5. Process text into documents
         docs = process_transcript_to_documents(
-            transcript_text=text,
-            speaker_data=None,
+            transcript_text=processed_text,
+            speaker_data=None, # Uses fallback chunking
             meeting_id=meeting_id,
             meeting_metadata=meeting_metadata
         )
         
-        # Upsert to Pinecone
+        # 6. Upsert to Pinecone
         _pinecone_manager.upsert_documents(docs, namespace=Config.PINECONE_NAMESPACE)
         
-        return f"✅ Successfully saved '{title}' to Pinecone (ID: {meeting_id})"
+        return (f"✅ Successfully saved '{title}' to Pinecone (ID: {meeting_id})\n"
+                f"   - Date: {final_date}\n"
+                f"   - Extracted Speakers: {', '.join(speaker_mapping.values()) if speaker_mapping else 'None'}")
         
     except Exception as e:
         return f"❌ Error saving to Pinecone: {str(e)}"

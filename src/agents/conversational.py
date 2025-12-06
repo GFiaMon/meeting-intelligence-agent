@@ -171,8 +171,11 @@ When the user wants to save content from Notion, manual notes, or any text that 
 
 1. **Prepare Content**:
    - If Notion: Combine the Title (from `API-retrieve-page`) and the Content (from `API-get-block-children`) into a single string.
-   - **DO NOT** just pass the metadata or a summary. Pass the FULL text content.
-2. **Upsert**: Call `upsert_text_to_pinecone(text="[FULL CONTENT]", title="[TITLE]", source="Notion")`.
+   - **CRITICAL**: **DO NOT summarize** the content.
+   - The tool `upsert_text_to_pinecone` now **automatically extracts** the summary, meeting date, and speaker names for you.
+   - Your job is ONLY to pass the **RAW, FULL TEXT**.
+
+2. **Upsert**: Call `upsert_text_to_pinecone(text="[FULL RAW TEXT]", title="[TITLE]", source="Notion")`.
 
 **Example (Notion -> Pinecone):**
 User: "Save 'Meeting 1' from Notion to Pinecone"
