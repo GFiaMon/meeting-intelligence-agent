@@ -86,14 +86,14 @@ This is much cleaner than renaming files!
 
 HuggingFace Spaces **must** run on port **7860**.
 
-- `app_time_mcp_server.py` is already set to 7860. ✅
-- `app_world_time_mcp_server.py` is set to **7861** (for local testing). ❌
+- `app_time_mcp_server.py` is already set to 7870. ✅
+- `app_world_time_mcp_server.py` is set to **7871** (for local testing). ❌
 
-**You MUST change this line in `app.py` before deploying:**
+**You MUST change this line in one of the `app_time_mcp_server.py` or `app_world_time_mcp_server.py` before deploying:**
 
 ```python
 # CHANGE THIS:
-server_port=7861
+server_port=7871
 
 # TO THIS:
 server_port=7860

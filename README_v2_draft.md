@@ -12,21 +12,6 @@ This project implements an intelligent conversational agent that orchestrates th
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
-## 📋 Table of Contents
-
-- [Documentation](#-documentation)
-- [System Architecture](#-system-architecture)
-- [Quick Start](#-quick-start)
-- [Docker support](#-docker-support)
-- [Live Demo & Deployment](#-live-demo-&-deployment)
-- [Project Structure](#-project-structure)
-- [Monitoring & Evaluation](#-monitoring-&-evaluation)
-- [Mcp Integration details](#-mcp-integration-details)
-- [Future Enhancements](#-future-enhancements)
-- [Contributing](#-contributing)
-- [License](#-license)
-- [Acknowledgments](#-acknowledgments)
-- [Contact](#-contact)
 
 ## 🌟 Features
 
@@ -58,9 +43,9 @@ This project implements an intelligent conversational agent that orchestrates th
 **Additional Documentation Files**
 
 For detailed technical documentation, see:
-- [ARCHITECTURE.md](documentation/ARCHITECTURE.md) - Full system design
-- [TECHNICAL_IMPLEMENTATION.md](documentation/TECHNICAL_IMPLEMENTATION.md) - Complete tool reference and Mermaid diagrams
-- [DEPLOYMENT_GUIDE.md](documentation/DEPLOYMENT_GUIDE.md) - Step-by-step deployment guide
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Full system design
+- [TECHNICAL_IMPLEMENTATION.md](docs/TECHNICAL_IMPLEMENTATION.md) - Complete tool reference and Mermaid diagrams
+- [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) - Step-by-step deployment guide
 - [Pinecone Management Script](scripts/manage_pinecone.py) - Utility for database management
 
 ---
@@ -82,7 +67,7 @@ graph TD
 
     User([User]) <--> UI[Gradio Interface]
     UI <--> Agent["Conversational Agent (LangGraph)"]
-    Agent <--> LLM[OpenAI GPT-3.5-turbo]
+    Agent <--> LLM[OpenAI GPT-4]
     
     subgraph Tools ["🛠️ Tools & Capabilities"]
         direction TB
@@ -333,8 +318,6 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ---
 
 ## 📧 Contact
-
-Author: Guillermo Fiallo Montero - Data Science & AI Engineer
 
 <!-- Your Name - [your.email@example.com](mailto:your.email@example.com) -->
 

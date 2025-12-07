@@ -84,7 +84,7 @@ def show_stats():
 
 def clear_namespace():
     """Clear all data from the default namespace."""
-    print("\n⚠️  WARNING: This will delete ALL data in the 'default' namespace!\n")
+    print(f"\n⚠️  WARNING: This will delete ALL data in the '{Config.PINECONE_NAMESPACE}' namespace!\n")
     
     confirm = input("Type 'DELETE ALL' to confirm: ")
     if confirm != 'DELETE ALL':
