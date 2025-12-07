@@ -132,6 +132,41 @@ graph TB
 
 ---
 
+### 🔄 Agent Workflow (LangGraph Orchestration)
+
+The agent uses a **state machine** pattern with three nodes:
+
+```
+1. PREPARE → 2. AGENT → 3. TOOLS (if needed) → back to AGENT → END
+```
+
+**Node 1: Prepare Messages**
+- Converts Gradio chat history to LangChain messages
+- Injects system prompt with tool usage guidelines
+- Adds current user query
+
+**Node 2: Call Agent**
+- LLM (GPT-3.5-turbo) decides which tool(s) to call
+- Returns either:
+  - Tool calls (JSON with tool name + arguments)
+  - Final text response
+
+**Node 3: Execute Tools**
+- LangGraph's `ToolNode` executes selected tools
+- Handles async MCP tools (Notion API)
+- Returns results to agent for synthesis
+
+**Conditional Edge Logic**:
+- If `last_message.tool_calls` exists → continue to tools
+- Else → end and return response
+
+**Error Handling**:
+- Tool failures are caught and returned as error messages
+- Agent can retry with different tools
+- User is informed of failures with actionable suggestions
+
+---
+
 ## 🛠️ Agent Tools Reference
 
 

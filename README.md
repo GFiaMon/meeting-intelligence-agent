@@ -43,9 +43,9 @@ This project implements an intelligent conversational agent that orchestrates th
 **Additional Documentation Files**
 
 For detailed technical documentation, see:
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - Full system design
-- [TECHNICAL_IMPLEMENTATION.md](docs/TECHNICAL_IMPLEMENTATION.md) - Complete tool reference and Mermaid diagrams
-- [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) - Step-by-step deployment guide
+- [ARCHITECTURE.md](documentation/ARCHITECTURE.md) - Full system design
+- [TECHNICAL_IMPLEMENTATION.md](documentation/TECHNICAL_IMPLEMENTATION.md) - Complete tool reference and Mermaid diagrams
+- [DEPLOYMENT_GUIDE.md](documentation/DEPLOYMENT_GUIDE.md) - Step-by-step deployment guide
 - [Pinecone Management Script](scripts/manage_pinecone.py) - Utility for database management
 
 ---
@@ -67,7 +67,7 @@ graph TD
 
     User([User]) <--> UI[Gradio Interface]
     UI <--> Agent["Conversational Agent (LangGraph)"]
-    Agent <--> LLM[OpenAI GPT-4]
+    Agent <--> LLM[OpenAI GPT-3.5-turbo]
     
     subgraph Tools ["🛠️ Tools & Capabilities"]
         direction TB
