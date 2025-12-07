@@ -1,6 +1,41 @@
 
 # Deployment Guide
 
+> **Meeting Intelligence Agent - Deployment Documentation**
+
+---
+
+## 📋 Table of Contents
+
+- [Local Development](#-local-development)
+  - [Environment Setup](#1-environment-setup)
+  - [API Keys Configuration](#2-api-keys-configuration)
+  - [Initialize Pinecone](#3-initialize-pinecone-to-test-connection)
+  - [Run Application](#4-run-application)
+  - [Pinecone Management](#5-pinecone-management)
+- [Docker Deployment](#-docker-deployment)
+  - [Build Docker Image](#1-build-docker-image)
+  - [Run Container](#2-run-container)
+  - [Docker Compose](#3-docker-compose-recommended)
+- [Hugging Face Spaces Deployment](#-hugging-face-spaces-deployment)
+  - [Create New Space](#1-create-new-space)
+  - [Configure Space Settings](#2-configure-space-settings)
+  - [Upload Files](#3-upload-files)
+  - [Configure Dockerfile](#4-configure-dockerfile)
+  - [Build and Deploy](#5-build-and-deploy)
+  - [Enable Auto-Redeploy](#6-enable-auto-redeploy)
+- [Custom MCP Server Deployment](#-custom-mcp-server-deployment)
+  - [World Time Server](#world-time-server)
+  - [Update Main Agent Configuration](#update-main-agent-configuration)
+- [Production Considerations](#-production-considerations)
+  - [Security](#1-security)
+  - [Performance Optimization](#2-performance-optimization)
+  - [Monitoring](#3-monitoring)
+  - [Scaling](#4-scaling)
+  - [Database Maintenance](#5-database-maintenance)
+
+---
+
 ## Local Development
 
 ### 1. Environment Setup

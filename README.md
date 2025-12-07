@@ -12,6 +12,21 @@ This project implements an intelligent conversational agent that orchestrates th
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
+## 📋 Table of Contents
+
+- [Documentation](#-documentation)
+- [System Architecture](#-system-architecture)
+- [Quick Start](#-quick-start)
+- [Docker support](#-docker-support)
+- [Live Demo & Deployment](#-live-demo-&-deployment)
+- [Project Structure](#-project-structure)
+- [Monitoring & Evaluation](#-monitoring-&-evaluation)
+- [Mcp Integration details](#-mcp-integration-details)
+- [Future Enhancements](#-future-enhancements)
+- [Contributing](#-contributing)
+- [License](#-license)
+- [Acknowledgments](#-acknowledgments)
+- [Contact](#-contact)
 
 ## 🌟 Features
 
@@ -318,6 +333,8 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ---
 
 ## 📧 Contact
+
+Author: Guillermo Fiallo Montero - Data Science & AI Engineer
 
 <!-- Your Name - [your.email@example.com](mailto:your.email@example.com) -->
 

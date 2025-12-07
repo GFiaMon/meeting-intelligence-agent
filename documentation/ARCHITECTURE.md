@@ -106,12 +106,12 @@ graph TB
     MetadataExtractor --> OpenAI
     Agent --> OpenAI
     
-    classDef frontend fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-    classDef agent fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    classDef tools fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
-    classDef processing fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef storage fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
-    classDef external fill:#ffebee,stroke:#c62828,stroke-width:2px
+    classDef frontend fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000000
+    classDef agent fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#000000   
+    classDef tools fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#000000
+    classDef processing fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000000
+    classDef storage fill:#fff9c4,stroke:#fbc02d,stroke-width:2px,color:#000000
+    classDef external fill:#ffebee,stroke:#c62828,stroke-width:2px,color:#000000
     
     class UI,Chat,Upload,Editor frontend
     class Agent,StateMachine,ToolRouter agent

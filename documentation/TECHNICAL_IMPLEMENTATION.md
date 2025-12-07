@@ -1,5 +1,41 @@
 # Technical Implementation Details
 
+> **Meeting Intelligence Agent - Technical Reference**
+
+---
+
+## 📋 Table of Contents
+
+- [Complete Agent Tools Architecture](#-complete-agent-tools-architecture)
+  - [Agent Workflow (LangGraph Orchestration)](#-agent-workflow-langgraph-orchestration)
+- [Agent Tools Reference](#️-agent-tools-reference)
+  - [Video Processing Tools](#video-processing-tools-8-total)
+  - [Meeting Query Tools](#meeting-query-tools-6-total)
+- [MCP Server Implementation](#-mcp-server-implementation)
+  - [World Time Server](#world-time-server-external_mcp_serverstime_mcp_server)
+  - [Zoom RTMS Integration](#zoom-rtms-integration-external_mcp_serverszoom_mcp)
+- [Pinecone Management Utility](#️-pinecone-management-utility)
+  - [Available Commands](#available-commands)
+  - [Implementation Details](#implementation-details)
+  - [Code Structure](#code-structure)
+  - [Use Cases](#use-cases)
+- [LangGraph Agent Architecture](#-langgraph-agent-architecture)
+  - [State Machine Implementation](#state-machine-implementation)
+  - [System Prompt Design](#system-prompt-design)
+  - [MCP Client Integration](#mcp-client-integration)
+- [LangSmith Integration](#-langsmith-integration)
+  - [Basic Setup](#basic-setup)
+  - [What Gets Tracked](#what-gets-tracked)
+  - [Viewing Traces](#viewing-traces)
+- [Troubleshooting Guide](#-troubleshooting-guide)
+  - [Common Issues](#common-issues)
+- [Code Quality Standards](#-code-quality-standards)
+  - [Testing](#testing-not-on-public-repo)
+  - [Code Style](#code-style)
+  - [Performance Optimizations](#performance-optimizations)
+
+---
+
 ## 📊 Complete Agent Tools Architecture
 
 ```mermaid
