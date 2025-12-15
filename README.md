@@ -1,5 +1,3 @@
-## **Final README.md (Improved Version)**
-
 # 🎙️ Meeting Intelligence Agent
 
 > **AI-powered assistant for meeting transcription, analysis, and management.**
@@ -14,19 +12,33 @@ This project implements an intelligent conversational agent that orchestrates th
 ---
 ## 📋 Table of Contents
 
-- [Documentation](#-documentation)
-- [System Architecture](#-system-architecture)
-- [Quick Start](#-quick-start)
-- [Docker support](#-docker-support)
-- [Live Demo & Deployment](#-live-demo-&-deployment)
-- [Project Structure](#-project-structure)
-- [Monitoring & Evaluation](#-monitoring-&-evaluation)
-- [Mcp Integration details](#-mcp-integration-details)
-- [Future Enhancements](#-future-enhancements)
-- [Contributing](#-contributing)
-- [License](#-license)
-- [Acknowledgments](#-acknowledgments)
-- [Contact](#-contact)
+- [🎙️ Meeting Intelligence Agent](#️-meeting-intelligence-agent)
+  - [📋 Table of Contents](#-table-of-contents)
+  - [🌟 Features](#-features)
+  - [📚 Documentation](#-documentation)
+  - [🏗️ System Architecture](#️-system-architecture)
+  - [🚀 Quick Start](#-quick-start)
+    - [Prerequisites](#prerequisites)
+    - [Installation](#installation)
+    - [Pinecone Management](#pinecone-management)
+  - [🐳 Docker Support](#-docker-support)
+  - [🌐 Live Demo \& Deployment](#-live-demo--deployment)
+    - [Hugging Face Spaces](#hugging-face-spaces)
+    - [Custom MCP Servers](#custom-mcp-servers)
+  - [📁 Project Structure](#-project-structure)
+  - [📊 Monitoring \& Evaluation](#-monitoring--evaluation)
+    - [LangSmith Integration](#langsmith-integration)
+    - [Basic Evaluation](#basic-evaluation)
+  - [🔌 MCP Integration Details](#-mcp-integration-details)
+    - [Current MCP Servers](#current-mcp-servers)
+    - [Time-Aware Queries Example](#time-aware-queries-example)
+  - [🔮 Future Enhancements](#-future-enhancements)
+    - [In Development](#in-development)
+    - [Planned Features](#planned-features)
+  - [🤝 Contributing](#-contributing)
+  - [📄 License](#-license)
+  - [🙏 Acknowledgments](#-acknowledgments)
+  - [📧 Contact](#-contact)
 
 ## 🌟 Features
 
@@ -72,7 +84,7 @@ For detailed technical documentation, see:
 ```mermaid
 graph TD
     %% Define Styles
-    classDef ui fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000000;
+    classDef ui fill:#e1f5fe,stroke:#01579b,stroke-width:2px**,color:#000000;
     classDef agent fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#000000;
     classDef tools fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#000000;
     classDef pipe fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#000000;
