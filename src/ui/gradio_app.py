@@ -344,12 +344,81 @@ The agent will acknowledge your upload and help you analyze the meeting.
     # GRADIO UI - MULTI-PAGE APP
     # ============================================================
 
-    with gr.Blocks(title="Meeting Intelligence Assistant", fill_height=True) as demo:
+    # Custom CSS for MEMO branding (Indigo + Lime)
+    # Injected via HTML to avoid Gradio version compatibility issues
+    # Logo is embedded as Base64 to avoid file path serving issues in all environments
+    import base64
+    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo.png")
+    try:
+        with open(logo_path, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+        logo_src = f"data:image/png;base64,{encoded_string}"
+    except Exception as e:
+        print(f"Warning: Could not load logo: {e}")
+        logo_src = ""
+
+    memo_header_html = f"""
+    <script>
+        // Try to force dark mode via JS as well for good measure
+        document.addEventListener('DOMContentLoaded', () => {{
+            const urlParams = new URLSearchParams(window.location.search);
+            if (!urlParams.has('__theme')) {{
+                 // This acts as a fallback hint
+                document.body.classList.add('dark');
+            }}
+        }});
+    </script>
+    <style>
+    /* Aggressive CSS Overrides to FORCE Dark Mode */
+    :root, body, .gradio-container {{
+        --body-background-fill: #0A0A0A !important;
+        --body-text-color: #E5E7EB !important;
+        --background-fill-primary: #111111 !important;
+        --background-fill-secondary: #0F0F0F !important;
+        --border-color-primary: #374151 !important;
+        --block-background-fill: #111111 !important;
+        --block-label-text-color: #E5E7EB !important;
+        --block-title-text-color: #E5E7EB !important;
+        --input-background-fill: #1F2937 !important;
+        --input-text-color: white !important;
+        --button-primary-background-fill: #CCFF00 !important;
+        --button-primary-text-color: #000000 !important;
+        --button-secondary-background-fill: #374151 !important;
+        --button-secondary-text-color: white !important;
+    }}
+    
+    body {{
+        background-color: #0A0A0A !important;
+        color: #E5E7EB !important;
+    }}
+
+    /* MEMO Branding Specifics */
+    .gradio-container {{ font-family: 'Inter', sans-serif; }}
+    h1, h2, h3 {{ font-weight: 700 !important; color: white !important; }}
+    .memo-logo {{ width: 150px; height: auto; border-radius: 15px; margin: 0 auto; display: block; }}
+    
+    /* Fix for common light mode leaks */
+    .prose {{ color: #E5E7EB !important; }}
+    </style>
+    
+    <div style="text-align: center; margin-bottom: 20px;">
+        <img src="{logo_src}" alt="MEMO Logo" class="memo-logo">
+    </div>
+    """
+    
+    # Using standard theme to ensure stability
+    with gr.Blocks(title="MEMO | Meeting Intelligence", fill_height=True) as demo:
         
-        # Main Title
+        # Header with Logo and CSS
+        gr.HTML(memo_header_html)
+        
         gr.Markdown("""
-        # 💬 Meeting Intelligence Assistant
-        **Upload videos, transcribe, edit, and search your meeting recordings**
+        # **MEMO**
+        ### *Never forget a word.*
+        
+        **Your AI-powered meeting intelligence agent.**
+        
+        ---
         """)
         
         # Create tabs for multi-page navigation
@@ -375,41 +444,51 @@ The agent will acknowledge your upload and help you analyze the meeting.
                 
                 # Custom Chatbot with responsive height
                 custom_chatbot = gr.Chatbot(
-                    height="70vh",
+                    height="65vh",
                     show_label=False
                 )
                 
                 # Define a pool of diverse example questions
                 all_examples = [
+                    # --- Generic / Follow-up / Action-oriented ---
                     "Summarize the key decisions from the last meeting",
-                    "What are the action items assigned to me?",
-                    "List all meetings from October",
-                    "Create a summary for sendout",
-                    
-                    # self created REVIEW!
-                    "Show me the meeting minutes from last week",
-                    "Who were attendants from last week's meeting?",
-                    "When was the last meeting where budget was discussed?",
-                    "Who is responsible for what in that meeting?", 
-                    "What tasks have been assigned to whom?",
-                    "What should person abc do?",
-
-                    "Find discussions about 'budget' and 'costs'",
-                    "What did John say about the deadline?",
+                    "What are the action items assigned?",
                     "Draft a follow-up email based on this meeting",
                     "Create a Notion page with these meeting minutes",
-                    "What are the main risks identified in the project?",
-                    "Compare the progress reported in the last two meetings",
-                    "Who attended the 'Strategy Review' meeting?",
                     "Extract all dates and deadlines mentioned",
-                    "Summarize the feedback on the new design",
-                    "What are the next steps for the marketing team?",
-                    "Did we decide on a launch date?",
-                    "Upload this transcript to Notion"
+                    "Compare the progress reported in the last two meetings",
+                    
+                    # --- Search / Cross-cutting ---
+                    "Find all discussions about 'budget' across meetings",
+                    "List meetings from November 2025",
+
+                    # --- Project & Meeting Specific (Pinecone Data) ---
+                    "What is the status of the 'Apex Agent' project?",
+                    "What decisions were made about the Christmas Party?",
+                    "Summarize the technical bottlenecks in the Vision model",
+                    "What were the findings of the compliance audit?",
+                    "Why is there a shortfall in EMEA?"
                 ]
+
+                # --- Old / Unused Examples (Commented out) ---
+                # "What are the action items assigned to me?",
+                # "List all meetings from October",
+                # "Create a summary for sendout",
+                # "Show me the meeting minutes from last week",
+                # "Who were attendants from last week's meeting?",
+                # "When was the last meeting where budget was discussed?",
+                # "Who is responsible for what in that meeting?", 
+                # "What tasks have been assigned to whom?",
+                # "What should person abc do?",
+                # "Find discussions about 'budget' and 'costs'",
+                # "What did John say about the deadline?",
+                # "What are the main risks identified in the project?",
+                # "Who attended the 'Strategy Review' meeting?",
+                # "Summarize the feedback on the new design",
+                # "Upload this transcript to Notion"
                 
-                # Select 5 random examples (changes on app restart)
-                selected_examples = random.sample(all_examples, 5)
+                # Select 8 random examples (changes on app restart)
+                selected_examples = random.sample(all_examples, 8)
                 # Format for gr.Examples (needs list of lists)
                 formatted_examples = [[ex] for ex in selected_examples]
                 
@@ -434,7 +513,7 @@ The agent will acknowledge your upload and help you analyze the meeting.
                 # gr.Markdown("""
                 # **💡 Tip:** After transcription completes, you can **view the full transcript** and make edits in the **"✏️ Edit Transcript"** tab before uploading to Pinecone!
                 
-                # **🗑️ Memory Tip:** If you delete a meeting or want to start fresh, click the **Trash Icon** (Clear) above the chat to flush the agent's memory.
+                # **🗑️ Memory Tip:** If you want to start a fresh chat, click the **Trash Icon** (Clear) above the chat to flush the agent's memory.
                 # """)
                 # Footer (outside tabs, always visible)
                 gr.Markdown("""
@@ -450,7 +529,7 @@ The agent will acknowledge your upload and help you analyze the meeting.
 
                 - After transcription completes, you can **view the full transcript** and make edits in the **"✏️ Edit Transcript"** tab before uploading to Pinecone!
 
-                **🗑️ Memory Tip:** If you delete a meeting or want to start fresh, click the **Trash Icon** (Clear) above the chat to flush the agent's memory.
+                **🗑️ Memory Tip:** If you want to start a fresh chat, click the **Trash Icon** (Clear) above the chat to flush the agent's memory.
 
                 - Ask specific questions to get better search results
                 """)

@@ -16,8 +16,28 @@ class Config:
     PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    MODEL_NAME = "gpt-3.5-turbo"
-    METADATA_MODEL = "gpt-4o-mini" # Cheaper model for metadata extraction
+    # Model Settings 1 (Default)
+    # MODEL_NAME = "gpt-3.5-turbo"
+    # METADATA_MODEL = "gpt-4o-mini" # Cheaper model for metadata extraction
+
+    # Model Settings 2 (Upgrade Setup)
+    # Primary Brain: Fixes routing bugs and reduces latency
+    # Significantly better at tool-calling than 3.5 Turbo
+    # MODEL_NAME = "gpt-4.1-mini"
+    # Extraction: Swap to 5-nano for cost, or 5-mini for "better than ok" results
+    # For Speaker Mapping, 5-nano is sufficient; 5-mini is the high-quality choice.
+    # METADATA_MODEL = "gpt-5-mini"
+
+    # Model Settings 3 (Power Setup)
+    # THE BRAIN: GPT-5.2 (Reasoning Model)
+    # Why: 98.7% tool-use accuracy. It "thinks" before it acts.
+    # Cost: $1.75/1M input. This will solve your routing bugs.
+    MODEL_NAME = "gpt-5.2" 
+    # THE WORKER: GPT-5-mini
+    # Why: High-speed extraction with reasoning capabilities. 
+    # Better than 4o-mini at inferring speaker roles from context.
+    METADATA_MODEL = "gpt-5-mini"
+
 
     # # Zoom API Settings
     # ZOOM_CLIENT_ID = os.getenv("ZOOM_CLIENT_ID")
