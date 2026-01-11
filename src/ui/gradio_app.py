@@ -357,15 +357,17 @@ The agent will acknowledge your upload and help you analyze the meeting.
         print(f"Warning: Could not load logo: {e}")
         logo_src = ""
 
+    logo_html = f'<div style="text-align: center; margin-bottom: 20px;"><img src="{logo_src}" alt="MEMO Logo" class="memo-logo"></div>' if logo_src else ""
+
     memo_header_html = f"""
     <script>
         // Try to force dark mode via JS as well for good measure
         document.addEventListener('DOMContentLoaded', () => {{
-            const urlParams = new URLSearchParams(window.location.search);
-            if (!urlParams.has('__theme')) {{
+             const urlParams = new URLSearchParams(window.location.search);
+             if (!urlParams.has('__theme')) {{
                  // This acts as a fallback hint
-                document.body.classList.add('dark');
-            }}
+                 document.body.classList.add('dark');
+             }}
         }});
     </script>
     <style>
@@ -401,9 +403,7 @@ The agent will acknowledge your upload and help you analyze the meeting.
     .prose {{ color: #E5E7EB !important; }}
     </style>
     
-    <div style="text-align: center; margin-bottom: 20px;">
-        <img src="{logo_src}" alt="MEMO Logo" class="memo-logo">
-    </div>
+    {logo_html}
     """
     
     # Using standard theme to ensure stability
