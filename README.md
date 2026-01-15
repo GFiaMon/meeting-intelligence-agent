@@ -1,4 +1,6 @@
-# 🎙️ Meeting Intelligence Agent
+# 🎙️ MEMO – Meeting Intelligence Agent
+
+![Logo MEMO](src/ui/assets/logo.png)
 
 > **AI-powered assistant for meeting transcription, analysis, and management.**
 
@@ -12,7 +14,7 @@ This project implements an intelligent conversational agent that orchestrates th
 ---
 ## 📋 Table of Contents
 
-- [🎙️ Meeting Intelligence Agent](#️-meeting-intelligence-agent)
+- [🎙️ MEMO – Meeting Intelligence Agent](#️-memo--meeting-intelligence-agent)
   - [📋 Table of Contents](#-table-of-contents)
   - [🌟 Features](#-features)
   - [📚 Documentation](#-documentation)

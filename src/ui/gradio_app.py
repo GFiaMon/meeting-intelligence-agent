@@ -347,12 +347,22 @@ The agent will acknowledge your upload and help you analyze the meeting.
     # Custom CSS for MEMO branding (Indigo + Lime)
     # Injected via HTML to avoid Gradio version compatibility issues
     # Logo is embedded as Base64 to avoid file path serving issues in all environments
-    import base64
-    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo.png")
+    # Try to load logo from python file (best for deployment)
     try:
-        with open(logo_path, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
-        logo_src = f"data:image/png;base64,{encoded_string}"
+        # Dynamic import to avoid issues if file doesn't exist yet
+        try:
+            from src.ui.assets.logo_data import LOGO_BASE64
+            logo_src = f"data:image/png;base64,{LOGO_BASE64}"
+        except ImportError:
+            # Fallback to local file if the data file wasn't generated
+            import base64
+            logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo.png")
+            if os.path.exists(logo_path):
+                with open(logo_path, "rb") as image_file:
+                    encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+                logo_src = f"data:image/png;base64,{encoded_string}"
+            else:
+                logo_src = ""
     except Exception as e:
         print(f"Warning: Could not load logo: {e}")
         logo_src = ""
